@@ -1,0 +1,32 @@
+
+# .bashrc
+# User specific aliases and functions
+alias diffR='diff -a -b --ignore-all-space --ignore-blank-lines --ignore-case --speed-large-files --suppress-common-lines -y'
+alias rm='rm -i'
+alias cp='cp -i'
+alias untar='tar xvfz'
+alias pwd='pwd -P'
+alias mv='mv -i'
+alias myip="wget -qO - http://cfaj.freeshell.org/ipaddr.cgi"
+# Source global definitions
+if [ -f /etc/bashrc ]; then
+	. /etc/bashrc
+fi
+
+if [ -f ~/.bash_aliases ]; then
+   . ~/.bash_aliases
+fi
+
+# enable color support of ls and also add handy aliases
+if [ -x /bin/dircolors -o -x /usr/bin/dircolors ]; then
+   eval "`dircolors -b`"
+   alias ls='ls --color=auto'
+   #alias dir='dir --color=auto'
+   #alias vdir='vdir --color=auto'
+
+   alias grep='grep --color=auto'
+   #alias fgrep='fgrep --color=auto'
+   #alias egrep='egrep --color=auto'
+fi
+alias dropbox='/root/dropbox/Dropbox-Uploader/dropbox_uploader.sh'
+alias version='perl -v'
