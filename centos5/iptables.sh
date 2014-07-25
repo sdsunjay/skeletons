@@ -1,8 +1,9 @@
-
 #!/bin/bash
 # Modify script as per your setup
 # Usage: Sample firewall script
 # ---------------------------
+#some stuff came from here,
+#http://www.thegeekstuff.com/scripts/iptables-rules
 _input=/some/path/iptables/blockList.txt
 _pub_if="venet0"
 #will differ depending on your system
@@ -59,12 +60,14 @@ $IPT -I FORWARD -j blockList
 
 echo Open outgoing and incoming port 80 for web
 # Open port 80 for web
+#http
 $IPT -A INPUT -m state --state NEW -p tcp --dport 80 -j ACCEPT
+#https
 $IPT -A INPUT -m state --state NEW -p tcp --dport 443 -j ACCEPT
 
 
 echo Open incoming port 22 for ssh
-# Open port 73 for ssh
+# Open port 22 for ssh
 $IPT -A INPUT -p tcp --dport 22 -j ACCEPT
 $IPT -A OUTPUT -p tcp --sport 22 -j ACCEPT
 
@@ -82,10 +85,29 @@ $IPT -A INPUT -i ${_pub_if}  -p icmp -m icmp --icmp-type 3 -m limit --limit 30/s
 $IPT -A INPUT -i ${_pub_if}  -p icmp -m icmp --icmp-type 5 -m limit --limit 30/sec -j ACCEPT
 $IPT -A INPUT -i ${_pub_if}  -p icmp -m icmp --icmp-type 11 -m limit --limit 30/sec -j ACCEPT
  
+echo Allow outbound DNS
+# Allow outbound DNS
+$IPT -A OUTPUT -p udp -o ${_pub_if} --dport 53 -j ACCEPT
+$IPT -A INPUT -p udp -i ${_pub_if} --sport 53 -j ACCEPT
+
+# Security 
+# Syn-flood protection:
+$IPT -A FORWARD -p tcp --syn -m limit --limit 1/s -j ACCEPT
+# Furtive port scanner:
+$IPT -A FORWARD -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s -j ACCEPT
+# Ping of death:
+$IPT -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+# Prevent DoS attack
+$IPT -A INPUT -p tcp --dport 80 -m limit --limit 25/minute --limit-burst 100 -j ACCEPT
+
 echo drop and log everything else
 # drop and log everything else
-$IPT -A INPUT -m limit --limit 5/m --limit-burst 7 -j LOG
-$IPT -A INPUT -j DROP
+# limiting the number of times we log
+# Log dropped packets
+$IPT -N LOGGING
+$IPT -A INPUT -j LOGGING
+$IPT -A LOGGING -m limit --limit 5/min --limit-burst 7 -j LOG --log-prefix "IPtables Packet Dropped: " --log-level 5
+$IPT -A LOGGING -j DROP
 
 #save IP tables rules to a file
 iptables-save > /root/usefulScripts/iptables/iptables_saved
