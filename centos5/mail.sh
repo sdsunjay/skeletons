@@ -8,4 +8,4 @@ fi
 AT=$(echo -e "\n")
 AS=$(last | head -n 1)
 AK=${AR}"\n"${AS}
-echo -e "$AK" | mail -s "ssh login on myVPS" youremailaddress@google.comm
+echo -e "$AK" | mail -s "ssh login on myVPS" youremailaddress@gmail.com
