@@ -2,11 +2,14 @@
 # Modify script as per your setup
 # Usage: Sample firewall script
 # ---------------------------
-#some stuff came from here,
-#http://www.thegeekstuff.com/scripts/iptables-rules
+# some stuff came from here,
+# http://www.thegeekstuff.com/scripts/iptables-rules
+# http://www.rackspace.com/knowledge_center/article/mail-server-opening-ports-in-the-linux-firewall
+# Path to block list
 _input=/some/path/iptables/blockList.txt
+# interface
 _pub_if="venet0"
-#will differ depending on your system
+# Will differ depending on your system
 IPT=/sbin/iptables
 
 # Die if file not found
@@ -71,12 +74,15 @@ echo Open incoming port 22 for ssh
 $IPT -A INPUT -p tcp --dport 22 -j ACCEPT
 $IPT -A OUTPUT -p tcp --sport 22 -j ACCEPT
 
-
 echo Open port 25 for sendmail
-#Open port 25 for sendmail
-$IPT -A OUTPUT -o ${_pub_if} -p tcp --sport 25 -m state --state NEW,ESTABLISHED -j ACCEPT
-$IPT -A OUTPUT -o ${_pub_if} -p tcp --dport 25 -m state --state NEW,ESTABLISHED -j ACCEPT
-$IPT -A INPUT -i ${_pub_if} -p tcp --sport 25 -m state --state ESTABLISHED -j ACCEPT
+# Allow Sendmail or Postfix
+$IPT -A INPUT -p tcp --dport 25 -j ACCEPT
+$IPT -A OUTPUT -p tcp --sport 25 -j ACCEPT
+
+echo Open port 465 for secure sendmail
+# Allow Sendmail or Postfix
+$IPT -A INPUT -p tcp --dport 465 -j ACCEPT
+$IPT -A OUTPUT -p tcp --sport 465 -j ACCEPT
 
 echo Allow incoming ICMP ping pong stuff
  # Allow incoming ICMP ping pong stuff
@@ -111,26 +117,3 @@ $IPT -A LOGGING -j DROP
 
 #save IP tables rules to a file
 iptables-save > /root/usefulScripts/iptables/iptables_saved
-
-#some stuff we previously tried
-
-# Open port 80 for web
-# $IPT -A INPUT -i ${_pub_if} -p tcp --destination-port 80  -j ACCEPT
-#$IPT -A INPUT -p tcp -m tcp --sport 80 -j ACCEPT
-#$IPT -A OUTPUT -p tcp -m tcp --dport 80 -j ACCEPT 
-#$IPT -A INPUT -p udp -m tcp --sport 80 -j ACCEPT
-#$IPT -A OUTPUT -p udp -m tcp --dport 80 -j ACCEPT 
-
-#Open port 25 for sendmail
-#$IPT -A OUTPUT -p tcp --dport 25 -j ACCEPT
-#$IPT -A INPUT -p tcp --sport 25 -m state --state ESTABLISHED -j ACCEPT
-#$IPT -A INPUT -m state --state NEW -p tcp --dport 25 -j ACCEPT
-
-#$IPT -A INPUT -i ${_pub_if} -p tcp --destination-port 25  -j ACCEPT
-#$IPT -A OUTPUT -i ${_pub_if} -p tcp --source-port 25  -j ACCEPT
-
-#echo Open port 22 for ssh
-# Open port 22 for ssh
-#SERVER_IP="172.245.22.244"
-#$IPT -A OUTPUT -p tcp -s $SERVER_IP -d 0/0 –sport 513:65535 –dport 22 -m state –state NEW,ESTABLISHED -j ACCEPT
-#$IPT -A INPUT -p tcp -s -d $SERVER_IP –sport 22 –dport 513:65535 -m state –state ESTABLISHED -j ACCEPT
