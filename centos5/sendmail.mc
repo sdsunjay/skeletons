@@ -56,7 +56,7 @@ define(`confUSERDB_SPEC', `/etc/mail/userdb.db')dnl
 define(`confPRIVACY_FLAGS', `authwarnings,novrfy,noexpn,restrictqrun')dnl
 define(`confAUTH_OPTIONS', `A')dnl
 dnl # 1 MB is the max size for an email message
-dnl # define(`confMAX_MESSAGE_SIZE','1000000')dnl
+define(`confMAX_MESSAGE_SIZE','1000000')dnl
 define(`confMAXRCPTSPERMESSAGE', `50')dnl Denial of service Attacks
 dnl #
 dnl # The following allows relaying if the user authenticates, and disallows
@@ -79,11 +79,16 @@ dnl #     cd /etc/pki/tls/certs; make sendmail.pem
 dnl # Complete usage:
 dnl #     make -C /etc/pki/tls/certs usage
 dnl #
-dnl define(`confCACERT_PATH', `/etc/pki/tls/certs')dnl
-dnl define(`confCACERT', `/etc/pki/tls/certs/ca-bundle.crt')dnl
-dnl define(`confSERVER_CERT', `/etc/pki/tls/certs/sendmail.pem')dnl
-dnl define(`confSERVER_KEY', `/etc/pki/tls/certs/sendmail.pem')dnl
-dnl define ORIGINAL
+
+dnl # TO DO
+define(`confCACERT_PATH', `/etc/pki/tls/certs')dnl
+define(`confCACERT', `/etc/pki/tls/certs/ca-bundle.crt')dnl
+define(`confSERVER_CERT', `/etc/pki/tls/certs/sendmail.pem')dnl
+define(`confSERVER_KEY', `/etc/pki/tls/certs/sendmail.pem')dnl
+
+
+
+dnl # ORIGINAL
 dnl # define(`confCACERT_PATH', `/etc/pki/tls/certs')dnl
 dnl # define(`confCACERT', `/etc/pki/tls/certs/ca-bundle.crt')dnl
 dnl # define(`confSERVER_CERT', `/etc/pki/tls/certs/sendmail.pem')dnl
@@ -106,10 +111,10 @@ dnl FEATURE(delay_checks)dnl
 FEATURE(`no_default_msa', `dnl')dnl
 FEATURE(`smrsh', `/usr/sbin/smrsh')dnl
 FEATURE(`mailertable', `hash -o /etc/mail/mailertable.db')dnl
-FEATURE(`virtusertable', `hash -o /etc/mail/virtusertable.db')dnl
+FEATURE(`virtusertable', `hash -o /etc/mail/virtusertable.db')dnl With the help of virtual user table we can specify rules like mails sent to 'user1@domain1.com' should go to following address and mails sent to 'user1@domain2.com' should go to another address.
 FEATURE(redirect)dnl
 FEATURE(always_add_domain)dnl
-FEATURE(use_cw_file)dnl
+FEATURE(use_cw_file)dnl make sendmail look for local-host-names file
 FEATURE(use_ct_file)dnl
 dnl #
 dnl # The following limits the number of processes sendmail can fork to accept 
@@ -147,8 +152,8 @@ dnl #
 dnl # The following causes sendmail to only listen on the IPv4 loopback address
 dnl # 127.0.0.1 and not on any other network devices. Remove the loopback
 dnl # address restriction to accept email from the internet or intranet.
-dnl #
-dnl # ORIGINAL dnl
+
+dnl # ORIGINAL 
 dnl # DAEMON_OPTIONS(`Port=smtp,Addr=127.0.0.1, Name=MTA')dnl
 dnl # Accept for the internet dnl
 dnl # DAEMON_OPTIONS(`Port=smtp,Name=MTA')dnl
@@ -169,7 +174,9 @@ dnl # when SSL is enabled-- STARTTLS support is available in version 1.1.1.
 dnl #
 dnl # For this to work your OpenSSL certificates must be configured.
 dnl #
-dnl # DAEMON_OPTIONS(`Port=smtps, Name=TLSMTA, M=s')dnl
+dnl # TO DO
+dnl # receive and send mail using smtps, port 465
+DAEMON_OPTIONS(`Port=smtps, Name=TLSMTA, M=s')dnl
 dnl #
 dnl # The following causes sendmail to additionally listen on the IPv6 loopback
 dnl # device. Remove the loopback address restriction listen to the network.
@@ -179,7 +186,8 @@ dnl #
 dnl # enable both ipv6 and ipv4 in sendmail:
 dnl #
 DAEMON_OPTIONS(`Name=MTA-v4, Family=inet, Name=MTA-v6, Family=inet6')
-dnl #
+
+
 dnl # We strongly recommend not accepting unresolvable domains if you want to
 dnl # protect yourself from spam. However, the laptop and users on computers
 dnl # that do not have 24x7 DNS do need this.
@@ -196,6 +204,12 @@ FEATURE(`greet_pause',5000)
 
 
 define(`confDOMAIN_NAME', `sunjaydhama.com')dnl
+FEATURE(`relay_entire_domain')dnl
+define(`confDOMAIN_NAME', `sunjay.io')dnl
+FEATURE(`relay_entire_domain')dnl
+define(`confDOMAIN_NAME', `sunjay.me')dnl
+FEATURE(`relay_entire_domain')dnl
+define(`confDOMAIN_NAME', `sunjay.co')dnl
 FEATURE(`relay_entire_domain')dnl
 dnl # 
 dnl # Also accept email sent to "localhost.localdomain" as local email.
@@ -220,6 +234,12 @@ FEATURE(dnsbl,`dialups.mail-abuse.org',` Mail from dial-up rejected; see http://
 FEATURE(`dnsbl',`dnsbl.njabl.org',`"550 Mail from " $&{client_addr} " rejected - see http://njabl.org/"')dnl
 dnl # FEATURE(`authinfo',`hash /etc/mail/authinfo')dnl
 dnl # FEATURE(`nouucp',`reject')dnl
+
+dnl # for SPAMASSASSIN
+INPUT_MAIL_FILTER(`spamassassin', `S=unix:/var/run/spamass-milter/spamass-milter.sock, F=, T=C:15m;S:4m;R:4m;E:10m')dnl
+define(`confMILTER_MACROS_CONNECT',`t, b, j, _, {daemon_name}, {if_name}, {if_addr}')dnl
+define(`confMILTER_MACROS_HELO',`s, {tls_version}, {cipher}, {cipher_bits}, {cert_subject}, {cert_issuer}')dnl
+
 
 dnl #
 dnl MASQUERADE_DOMAIN(localhost)dnl
