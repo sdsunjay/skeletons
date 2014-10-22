@@ -12,7 +12,7 @@
 
 # Tips found at http://www.cyberciti.biz/tips/linux-unix-bsd-openssh-server-best-practices.html
 
-Port 22
+Port 73
 Protocol 2
 #AddressFamily any
 #ListenAddress 0.0.0.0
@@ -113,13 +113,14 @@ UsePrivilegeSeparation yes
 #PermitUserEnvironment no
 #Compression delayed
 ClientAliveInterval 300
-ClientAliveCountMax 0
+ClientAliveCountMax 99999
+
+
 #ShowPatchLevel no
 #UseDNS yes
 #PidFile /var/run/sshd.pid
 #MaxStartups 10
 #PermitTunnel no
-# This can be very powerful, but also very limiting
 #ChrootDirectory none
 
 # no default banner path
