@@ -1,0 +1,70 @@
+
+#System Commands
+#alias ls='ls --color=auto -h --group-directories-first'
+alias mount='mount |column -t'
+alias gc="gcc -ansi -Wall -pedantic-errors"
+alias rsyn="rsync -ravvvvvv --exclude '*.jpg' --exclude 'blog' --exclude 'htmlpurifier*'  --exclude '*.JPG' --exclude '*.mov' --exclude '*.MOV' -e 'ssh -p 73' username@999.999.99.999:/usr/share/nginx/html ."
+alias rm= 'rm -i'
+
+#nohup command >/dev/null 2>&1 
+alias polyweb="ssh username@polylog1.school.edu"
+alias scpMe="~/cpe/usefulScripts/testing.sh $1 $2 $3"
+#SERVER ALIASES
+#############################
+alias vlc='/Applications/VLC.app/Contents/MacOS/VLC'
+alias unix1="ssh username@unix1.csc.calpoly.edu"
+alias unix2="ssh username@unix2.csc.calpoly.edu"
+alias unix3="ssh username@unix3.csc.calpoly.edu"
+alias unix4='ssh username@unix4.csc.calpoly.edu'
+alias droplet='ssh -p 6969 username@999.999.99.999'
+alias myweb="ssh -p 73 username@999.999.99.999"                                     
+alias media="ssh msmith@999.999.99.999"                                         
+alias polyweb="ssh username@polylog1.school.edu"
+alias arch="ssh -p 6969 school@999.999.99.999"
+
+#############################
+
+# Not all of these work in OS X
+#System information shortcuts
+## pass options to free ## 
+alias meminfo='free -m -l -t'
+ 
+## get top process eating memory
+alias psmem='ps auxf | sort -nr -k 4'
+alias psmem10='ps auxf | sort -nr -k 4 | head -10'
+ 
+## get top process eating cpu ##
+alias pscpu='ps auxf | sort -nr -k 3'
+alias pscpu10='ps auxf | sort -nr -k 3 | head -10'
+ 
+## Get server cpu info ##
+alias cpuinfo='lscpu'
+ 
+## older system use /proc/cpuinfo ##
+##alias cpuinfo='less /proc/cpuinfo' ##
+ 
+## get GPU ram on desktop / laptop## 
+alias gpumeminfo='grep -i --color memory /var/log/Xorg.0.log'
+ 
+## set some other defaults ##
+alias quota='df -H'
+alias df='df -H'
+alias du='du -ch'
+ 
+#Aliases copied from Eriq 
+
+################
+alias quit="exit"
+
+alias valgrindfull="valgrind --leak-check=full --show-reachable=yes --track-origins=yes"
+
+alias myip="curl http://cfaj.freeshell.org/ipaddr.cgi"
+
+alias noSleep="xset s off; xset -dpms"
+################
+
+function mkcd
+{
+   mkdir $1;
+   cd $1;
+}
