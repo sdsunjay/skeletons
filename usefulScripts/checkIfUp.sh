@@ -22,16 +22,14 @@ url="https://www.sunjaydhama.com/gui/new/index.html"
 destdir=/root/message.txt
 response=$(curl --write-out %{http_code} --silent --output /dev/null servername)
 
-#write date into new file
-DATE=`date +\%Y\%m\%d`
-
-#append reponse to file
 if [ -f "$destdir" ]
 then 
-    $DATE > $destdir 2>&1
+    #write date into new file
+    echo "$(date)" > $destdir
+    #append reponse to file
     echo "$response" >> "$destdir"
 fi
 curl -s -o "/dev/null" $url
 check $url;
-
+rm $destdir
 #if curl -s --head  --request GET https://www.sunjaydhama.com/gui/new/index.html | grep "200 OK" > /dev/null && curl -s --head --request GET https://www.sunjaydhama.com/gui/new/index.html | grep "200 OK" > /dev/null;
