@@ -4,7 +4,7 @@
 
 alias rm='rm -i'
 alias cp='cp -i'
-alias untar='tar -xvfz'
+alias untar='tar -zxvf'
 alias pwd='pwd -P'
 alias mv='mv -i'
 alias mkdir='mkdir -pv'
