@@ -12,7 +12,7 @@
 
 # Tips found at http://www.cyberciti.biz/tips/linux-unix-bsd-openssh-server-best-practices.html
 
-Port 73
+Port ##
 Protocol 2
 #AddressFamily any
 #ListenAddress 0.0.0.0
@@ -36,7 +36,7 @@ LogLevel INFO
 
 # Authentication:
 
-#LoginGraceTime 2m
+LoginGraceTime 30
 PermitRootLogin yes
 AllowUsers root
 
@@ -60,11 +60,10 @@ IgnoreRhosts yes
 
 # To disable tunneled clear text passwords, change to no here!
 PermitEmptyPasswords no
-# Disable passworks
+# Disable passwords
 PasswordAuthentication no
 
 # Change to no to disable s/key passwords
-#ChallengeResponseAuthentication yes
 ChallengeResponseAuthentication no
 
 # Kerberos options
@@ -112,8 +111,8 @@ TCPKeepAlive yes
 UsePrivilegeSeparation yes
 #PermitUserEnvironment no
 #Compression delayed
-ClientAliveInterval 300
-ClientAliveCountMax 99999
+ClientAliveInterval 600
+ClientAliveCountMax 0
 
 
 #ShowPatchLevel no
