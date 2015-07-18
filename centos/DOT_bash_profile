@@ -1,0 +1,18 @@
+# .bash_profile
+
+# Get the aliases and functions
+if [ -f ~/.bashrc ]; then
+. ~/.bashrc
+fi
+
+# User specific environment and startup programs
+
+PATH=$PATH:$HOME/bin
+
+HISTSIZE=5000
+HISTFILESIZE=10000
+export HISTTIMEFORMAT='%F %T '
+export HISTCONTROL=ignoredups
+export HISTIGNORE="pwd:ls:ls -l:date:exit:cd"
+export PATH
+unset USERNAME
