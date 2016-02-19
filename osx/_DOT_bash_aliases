@@ -1,26 +1,18 @@
-
-#System Commands
-#alias ls='ls --color=auto -h --group-directories-first'
+# System Commands
+# alias ls='ls --color=auto -h --group-directories-first'
 alias mount='mount |column -t'
 alias gc="gcc -ansi -Wall -pedantic-errors"
-alias rsyn="rsync -ravvvvvv --exclude '*.jpg' --exclude 'blog' --exclude 'htmlpurifier*'  --exclude '*.JPG' --exclude '*.mov' --exclude '*.MOV' -e 'ssh -p 73' username@999.999.99.999:/usr/share/nginx/html ."
-alias rm= 'rm -i'
+alias rm='rm -i'
+alias mkdir='mkdir -pv'
 
-#nohup command >/dev/null 2>&1 
-alias polyweb="ssh username@polylog1.school.edu"
+# Helpful for my website
+alias rsyn="rsync -ravvvvvv --exclude 'CMD' --exclude 'RS' --exclude '*.jpg' --exclude 'blog' --exclude 'protected' --exclude 'RS' --exclude 'vim' --exclude 'security'  --exclude '*.JPG' --exclude '*.jpeg' --exclude '*.JPEG' --exclude '*.png' --exclude '*.mov' --exclude '*.MOV' --exclude 'Resume.pdf' -e 'ssh -p 73' root@172.245.22.244:/usr/share/nginx/html ."
+alias findBigFiles="find . -type f -exec ls -s {} \; | sort -n -r | head -10"
+alias arsyn="diff --brief --exclude=projects --exclude=gui --exclude=*.DS_Store -bur html/ mywebsite/HTML/"
 alias scpMe="~/cpe/usefulScripts/testing.sh $1 $2 $3"
-#SERVER ALIASES
-#############################
+
+# OS X specific
 alias vlc='/Applications/VLC.app/Contents/MacOS/VLC'
-alias unix1="ssh username@unix1.csc.calpoly.edu"
-alias unix2="ssh username@unix2.csc.calpoly.edu"
-alias unix3="ssh username@unix3.csc.calpoly.edu"
-alias unix4='ssh username@unix4.csc.calpoly.edu'
-alias droplet='ssh -p 6969 username@999.999.99.999'
-alias myweb="ssh -p 73 username@999.999.99.999"                                     
-alias media="ssh msmith@999.999.99.999"                                         
-alias polyweb="ssh username@polylog1.school.edu"
-alias arch="ssh -p 6969 school@999.999.99.999"
 
 #############################
 
