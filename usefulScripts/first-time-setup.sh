@@ -1,8 +1,6 @@
 #!/bin/bash
 # This script will help you setup your new macbook
-
-
-# echo "Installing brew for you"
+echo "Installing brew for you"
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 echo "brew update"
 brew update
@@ -48,7 +46,15 @@ echo "brew install f.lux"
 brew cask install flux
 echo "brew install google-chrome"
 brew cask install google-chrome
-echo "alias brewup='brew update; brew upgrade; brew prune; brew cleanup; brew doctor'"
+echo "brew cask install atom"
+brew cask install atom
+echo "brew cask install vlc"
+brew cask install vlc
+echo "brew cask install kindle"
+brew cask install kindle
+
+echo "brew cleanup && brew cask cleanup"
+brew cleanup && brew cask cleanup
 
 echo "Type your name, followed by [ENTER]:"
 read name
