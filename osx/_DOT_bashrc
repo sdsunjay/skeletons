@@ -4,7 +4,13 @@ fi
 
 
 #nohup command >/dev/null 2>&1 
-export HISTCONTROL=ignoredups
+export HISTCONTROL=ignoreboth
+HISTFILESIZE=40000000
+HISTSIZE=10000
+PROMPT_COMMAND="history -a"
+export HISTSIZE PROMPT_COMMAND
+shopt -s histappend
+
 
 openpdf()
 {
