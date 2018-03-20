@@ -19,6 +19,10 @@ brew install colordiff
 echo "brew install cowsay"
 brew install cowsay
 cowsay -f dragon hello
+echo "brew install vim"
+brew install vim
+echo "git clone Vundle"
+git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
 echo "brew install speedtest_cli"
 brew install speedtest_cli
 echo "brew install python3"
@@ -58,7 +62,7 @@ brew cleanup && brew cask cleanup
 
 echo "Type your name, followed by [ENTER]:"
 read name
-git config --global user.name $name 
+git config --global user.name $name
 echo "Type your email, followed by [ENTER]:"
 read email
 git config --global user.email $email
