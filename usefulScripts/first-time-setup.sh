@@ -25,6 +25,10 @@ echo "git clone Vundle"
 git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
 echo "brew install speedtest_cli"
 brew install speedtest_cli
+echo "brew tap caskroom/versions"
+brew tap caskroom/versions
+echo "brew cask install java8"
+brew cask install java8
 echo "brew install python3"
 brew install python3
 echo "pip3 install virtualenv"
