@@ -60,6 +60,10 @@ echo "brew cask install vlc"
 brew cask install vlc
 echo "brew cask install kindle"
 brew cask install kindle
+echo "brew cask install gimp"
+brew cask install gimp
+echo "Skipping brew cask install vagrant"
+# brew cask install vagrant
 
 echo "brew cleanup && brew cask cleanup"
 brew cleanup && brew cask cleanup
