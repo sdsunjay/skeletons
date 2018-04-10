@@ -41,6 +41,10 @@ echo "brew install sqlite3"
 brew install sqlite3
 echo "brew install mysql"
 brew install mysql
+echo "brew tap homebrew/services"
+brew tap homebrew/services
+echo "brew install coreutils"
+brew install coreutils
 echo "SKIPPING brew services start mysql"
 echo "brew install postgresql"
 brew install postgresql
