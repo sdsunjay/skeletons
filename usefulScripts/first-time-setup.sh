@@ -54,8 +54,8 @@ echo "brew cask install iterm2"
 brew cask install iterm2
 echo "brew cask install spotify"
 brew cask install spotify
-echo "brew install f.lux"
-brew cask install flux
+echo "SKIPPING brew install f.lux"
+# brew cask install flux
 echo "brew install google-chrome"
 brew cask install google-chrome
 echo "brew cask install atom"
@@ -69,8 +69,8 @@ echo "SKIPPING brew cask install gimp"
 echo "SKIPPING brew cask install vagrant"
 # brew cask install vagrant
 
-echo "brew cleanup && brew cask cleanup"
-brew cleanup && brew cask cleanup
+echo "brew cleanup"
+brew cleanup 
 
 echo "Type your name, followed by [ENTER]:"
 read name
