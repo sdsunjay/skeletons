@@ -1,9 +1,8 @@
 #!/bin/bash
 # This script will help you setup your new macbook
+echo "This script will help you setup your new Apple computer"
 echo "Installing brew for you"
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-echo "brew update"
-brew update
 echo "brew tap caskroom/cask"
 brew tap caskroom/cask
 echo "brew install dockutil (don't forget to run this later)"
@@ -18,11 +17,8 @@ echo "brew install colordiff"
 brew install colordiff
 echo "brew install cowsay"
 brew install cowsay
+echo "cowsay -f dragon hello"
 cowsay -f dragon hello
-echo "brew install vim"
-brew install vim
-echo "git clone Vundle"
-git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
 echo "brew install speedtest_cli"
 brew install speedtest_cli
 echo "brew tap caskroom/versions"
@@ -48,6 +44,10 @@ brew install coreutils
 echo "SKIPPING brew services start mysql"
 echo "brew install postgresql"
 brew install postgresql
+echo "brew install vim"
+brew install vim
+echo "git clone Vundle"
+git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
 echo "SKIPPING brew install imagemagick"
 # brew install imagemagick
 echo "brew cask install iterm2"
@@ -64,9 +64,9 @@ echo "brew cask install vlc"
 brew cask install vlc
 echo "brew cask install kindle"
 brew cask install kindle
-echo "brew cask install gimp"
-brew cask install gimp
-echo "Skipping brew cask install vagrant"
+echo "SKIPPING brew cask install gimp"
+# brew cask install gimp
+echo "SKIPPING brew cask install vagrant"
 # brew cask install vagrant
 
 echo "brew cleanup && brew cask cleanup"
@@ -80,6 +80,10 @@ read email
 git config --global user.email $email
 echo "Setting vim as your editor of choice"
 git config --global core.editor vim
-echo "Generating new ssh key for you using ssh-keygen!"
-ssh-keygen -t rsa -b 4096 -C $email
+echo "Generating new SSH key for you using ssh-keygen!"
+echo "Type your comment for SSH key, followed by [ENTER]:"
+read comment
+echo "ssh-keygen -t rsa -b 4096 -C $comment"
+ssh-keygen -t rsa -b 4096 -C "$comment"
+echo "cat ~/.ssh/id_rsa.pub"
 cat ~/.ssh/id_rsa.pub
