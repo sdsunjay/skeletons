@@ -49,7 +49,8 @@
 set history=500
 
 " Enable filetype plugins
-filetype plugin on
+" set above
+" filetype plugin on
 filetype indent on
 
 " Set to auto read when a file is changed from the outside
@@ -209,7 +210,6 @@ set ai "Auto indent
 set si "Smart indent
 set wrap " whether to wrap lines
 
-
 """"""""""""""""""""""""""""""
 " => Visual mode related
 """"""""""""""""""""""""""""""
@@ -287,14 +287,21 @@ set formatoptions=tcrq         " t - autowrap to textwidth
 " r - autoinsert comment leader with <Enter>
 " q - allow formatting of comments with :gq
 " l - don't format already long lines
-
-set cindent
-autocmd BufReadPre,BufNewFile SConstruct set filetype=python
 autocmd BufReadPre,BufNewFile SConscript set filetype=python
 au BufNewFile,BufRead *.cu set ft=cu
 
 " Ruby
 autocmd FileType ruby setlocal expandtab shiftwidth=2 tabstop=2 softtabstop=2
+filetype plugin indent on
+set sw=2
+set ts=2
+:autocmd Filetype ruby set softtabstop=2
+:autocmd Filetype ruby set sw=2
+:autocmd Filetype ruby set ts=2
+
+:autocmd Filetype scala set softtabstop=2
+:autocmd Filetype scala set sw=2
+:autocmd Filetype scala set ts=2
 
 " PHP
 autocmd FileType php setlocal expandtab shiftwidth=4 tabstop=4 softtabstop=4
@@ -313,7 +320,7 @@ set viminfo='20,\"500,%	" ' Maximum number of previously edited files for which 
 " Return to last edit position when opening files (You want this!)
 au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
 " Dependency managment
-Bundle 'gmarik/vundle'
+" Bundle 'gmarik/vundle'
 " Te completion menu is controlled by completeopt. You can set multiple values to combine behaviours.
 " set completeopt=longest,menuone,preview
 
@@ -325,7 +332,6 @@ au BufNewFile,BufRead *.py set softtabstop=4
 au BufNewFile,BufRead *.py set shiftwidth=4
 au BufNewFile,BufRead *.py set textwidth=79
 au BufNewFile,BufRead *.py set expandtab
-au BufNewFile,BufRead *.py set autoindent
 au BufNewFile,BufRead *.py set fileformat=unix
 
 "define BadWhitespace before using in a match
@@ -339,10 +345,11 @@ if exists('+colorcolumn')
     setlocal colorcolumn=80
 endif
 
-au BufNewFile,BufRead *.js, *.html, *.css
-            \ set tabstop=2
-            \ set softtabstop=2
-            \ set shiftwidth=2
+au BufNewFile,BufRead *.js set tabstop=2
+au BufNewFile,BufRead *.js set softtabstop=2
+au BufNewFile,BufRead *.js set shiftwidth=2
+
+" *.html,*.css
 
 """"""""""""""""""""""""""""""
 " => Status line
