@@ -48,6 +48,8 @@ echo "brew install vim"
 brew install vim
 echo "brew install tmux"
 brew install tmux
+echo "brew install ansifilter"
+brew install ansifilter
 echo "git clone Vundle"
 git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
 echo "SKIPPING brew install imagemagick"
