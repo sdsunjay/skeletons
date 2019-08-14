@@ -46,6 +46,8 @@ echo "brew install postgresql"
 brew install postgresql
 echo "brew install vim"
 brew install vim
+echo "brew install tmux"
+brew install tmux
 echo "git clone Vundle"
 git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
 echo "SKIPPING brew install imagemagick"
