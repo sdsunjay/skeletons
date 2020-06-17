@@ -23,8 +23,8 @@ echo "brew install speedtest_cli"
 brew install speedtest_cli
 echo "brew tap caskroom/versions"
 brew tap caskroom/versions
-echo "brew cask install java8"
-brew cask install java8
+echo "brew cask install java"
+brew cask install java
 echo "brew install python3"
 brew install python3
 echo "pip3 install virtualenv"
@@ -58,12 +58,12 @@ echo "brew cask install iterm2"
 brew cask install iterm2
 echo "brew cask install spotify"
 brew cask install spotify
-echo "SKIPPING brew install f.lux"
+# echo "SKIPPING brew install f.lux"
 # brew cask install flux
 echo "brew install google-chrome"
 brew cask install google-chrome
-echo "brew cask install atom"
-brew cask install atom
+# echo "brew cask install atom"
+# brew cask install atom
 echo "brew cask install vlc"
 brew cask install vlc
 echo "brew cask install kindle"
@@ -74,19 +74,16 @@ echo "SKIPPING brew cask install vagrant"
 # brew cask install vagrant
 
 echo "brew cleanup"
-brew cleanup 
+brew cleanup
 
-echo "Type your name, followed by [ENTER]:"
-read name
+read -p 'Type your name, followed by [ENTER]: ' name
 git config --global user.name $name
-echo "Type your email, followed by [ENTER]:"
-read email
+read -p 'Type your email, followed by [ENTER]: ' email
 git config --global user.email $email
 echo "Setting vim as your editor of choice"
 git config --global core.editor vim
 echo "Generating new SSH key for you using ssh-keygen!"
-echo "Type your comment for SSH key, followed by [ENTER]:"
-read comment
+read -p 'Type your comment for SSH key, followed by [ENTER]: ' comment
 echo "ssh-keygen -t rsa -b 4096 -C $comment"
 ssh-keygen -t rsa -b 4096 -C "$comment"
 echo "cat ~/.ssh/id_rsa.pub"
