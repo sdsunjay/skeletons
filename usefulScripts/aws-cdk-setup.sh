@@ -1,7 +1,10 @@
-echo "nvm install 18.12.0"
-nvm install 18.12.0
+read -p 'Enter node version to install (18.12.0 is LTS) ' nodeversion
+echo "nvm install $nodeversion"
+nvm install $nodeversion
 echo "node"
 node
+nvm alias default $nodeversion
+nvm use $nodeversion
 echo "npm install aws-cdk-lib"
 npm install aws-cdk-lib
 echo "curl \"https://awscli.amazonaws.com/AWSCLIV2.pkg\" -o \"AWSCLIV2.pkg\""
