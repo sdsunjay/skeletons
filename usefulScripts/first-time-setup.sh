@@ -1,90 +1,226 @@
 #!/bin/bash
-# This script will help you setup your new macbook
-echo "This script will help you setup your new Apple computer"
-echo "Installing brew for you"
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-echo "brew tap caskroom/cask"
-brew tap caskroom/cask
-echo "brew install dockutil (don't forget to run this later)"
-brew install dockutil
-echo "brew install gpg"
-brew install gpg
-echo "brew install git"
-brew install git
-echo "brew install git-flow"
-brew install git-flow
-echo "brew install colordiff"
-brew install colordiff
-echo "brew install cowsay"
-brew install cowsay
-echo "cowsay -f dragon hello"
-cowsay -f dragon hello
-echo "brew install speedtest_cli"
-brew install speedtest_cli
-echo "brew tap caskroom/versions"
-brew tap caskroom/versions
-echo "brew cask install java"
-brew cask install java
-echo "brew install python3"
-brew install python3
-echo "pip3 install virtualenv"
-pip3 install virtualenv
-echo "brew install wget"
-brew install wget
-echo "brew install bash-completion"
-brew install bash-completion
-echo "brew install sqlite3"
-brew install sqlite3
-echo "brew install mysql"
-brew install mysql
-echo "brew tap homebrew/services"
-brew tap homebrew/services
-echo "brew install coreutils"
-brew install coreutils
-echo "SKIPPING brew services start mysql"
-echo "brew install postgresql"
-brew install postgresql
-echo "brew install vim"
-brew install vim
-echo "brew install tmux"
-brew install tmux
-echo "brew install ansifilter"
-brew install ansifilter
-echo "git clone Vundle"
-git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
-echo "SKIPPING brew install imagemagick"
-# brew install imagemagick
-echo "brew cask install iterm2"
-brew cask install iterm2
-echo "brew cask install spotify"
-brew cask install spotify
-# echo "SKIPPING brew install f.lux"
-# brew cask install flux
-echo "brew install google-chrome"
-brew cask install google-chrome
-# echo "brew cask install atom"
-# brew cask install atom
-echo "brew cask install vlc"
-brew cask install vlc
-echo "brew cask install kindle"
-brew cask install kindle
-echo "SKIPPING brew cask install gimp"
-# brew cask install gimp
-echo "SKIPPING brew cask install vagrant"
-# brew cask install vagrant
 
-echo "brew cleanup"
-brew cleanup
+# Global variables
+GITHUB_VUNDLE_REPO="https://github.com/gmarik/Vundle.vim.git"
+VUNDLE_DIR="$HOME/.vim/bundle/Vundle.vim"
+ZSHRC_FILE="$HOME/.zshrc"
 
-read -p 'Type your name, followed by [ENTER]: ' name
-git config --global user.name $name
-read -p 'Type your email, followed by [ENTER]: ' email
-git config --global user.email $email
-echo "Setting vim as your editor of choice"
-git config --global core.editor vim
-echo "Generating new SSH key for you using ssh-keygen!"
-read -p 'Type your comment for SSH key, followed by [ENTER]: ' comment
-echo "ssh-keygen -t rsa -b 4096 -C $comment"
-ssh-keygen -t rsa -b 4096 -C "$comment"
-echo "cat ~/.ssh/id_rsa.pub"
-cat ~/.ssh/id_rsa.pub
+# Function to handle errors
+error_exit() {
+    printf "Error: %s\n" "$1" >&2
+    exit 1
+}
+
+# Function to prompt user input with validation
+prompt_user_input() {
+    local prompt_msg="$1"
+    local user_input
+    read -p "$prompt_msg" user_input
+    if [[ -z "$user_input" ]]; then
+        error_exit "Input cannot be empty"
+    fi
+    printf "%s" "$user_input"
+}
+
+# Function to install a brew package
+install_brew_pkg() {
+    local pkg="$1"
+    printf "Installing %s...\n" "$pkg"
+    if ! brew install "$pkg"; then
+        error_exit "Failed to install $pkg"
+    fi
+}
+
+# Function to install a cask package
+install_cask_pkg() {
+    local pkg="$1"
+    printf "Installing cask package %s...\n" "$pkg"
+    if ! brew install --cask "$pkg"; then
+        error_exit "Failed to install cask package $pkg"
+    fi
+}
+
+# Function to tap a brew repository
+tap_brew_repo() {
+    local repo="$1"
+    printf "Tapping %s...\n" "$repo"
+    if ! brew tap "$repo"; then
+        error_exit "Failed to tap $repo"
+    fi
+}
+
+# Function to prompt for optional installation
+prompt_optional_pkg() {
+    local pkg="$1"
+    local response
+    read -p "Do you want to install the optional package $pkg? (y/n): " response
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+        install_brew_pkg "$pkg"
+    else
+        printf "Skipping optional package %s\n" "$pkg"
+    fi
+}
+
+# Function to add blocks of commands to .zshrc
+add_block_to_zshrc() {
+    local block="$1"
+    local pattern=$(echo "$block" | head -n 1) # Use the first line of the block as a pattern
+
+    # Check if .zshrc exists, create if it does not
+    if [[ ! -f "$ZSHRC_FILE" ]]; then
+        touch "$ZSHRC_FILE"
+    fi
+
+    # Append block if the pattern is not already in the file
+    if ! grep -qF "$pattern" "$ZSHRC_FILE"; then
+        printf "\n%s\n" "$block" >> "$ZSHRC_FILE"
+    fi
+}
+
+
+
+# Function to check and install Xcode Command Line Tools
+install_xcode_command_line_tools() {
+    # Check if Xcode Command Line Tools are installed
+    if ! xcode-select --print-path &>/dev/null; then
+        # Attempt to install Xcode Command Line Tools
+        xcode-select --install && return 0
+        error_exit "Failed to install Xcode command line tools"
+    else
+        printf "Xcode Command Line Tools already installed.\n"
+    fi
+}
+
+# Define the blocks of code
+# for zsh-completions
+BREW_COMPINIT_BLOCK="if type brew &>/dev/null; then
+    FPATH=\$(brew --prefix)/share/zsh-completions:\$FPATH
+    autoload -Uz compinit
+    compinit
+fi"
+
+# for pyenv
+PYENV_BLOCK="eval \"\$(pyenv init -)\"
+if which pyenv-virtualenv-init > /dev/null; then
+    eval \"\$(pyenv virtualenv-init -)\"
+fi"
+
+# Main function
+main() {
+    printf "This script will help you set up your new Apple computer\n"
+
+    # Install Xcode command line tools
+    install_xcode_command_line_tools
+    
+    # Install Homebrew
+    printf "Installing Homebrew...\n"
+    if ! /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
+        error_exit "Failed to install Homebrew"
+    fi
+
+    # Update and upgrade brew
+    brew update || error_exit "Failed to update Homebrew"
+    brew upgrade || error_exit "Failed to upgrade Homebrew"
+
+    # Install essential brew packages
+    install_brew_pkg "git"
+    install_brew_pkg "gpg"
+    install_brew_pkg "vim"
+    install_brew_pkg "wget"
+    install_brew_pkg "zsh-completions"
+    install_brew_pkg "ruby"
+    install_brew_pkg "pyenv"
+    install_brew_pkg "pyenv-virtualenv"
+
+    # Set permissions for zsh-completions
+    printf "Setting permissions for zsh-completions... \n"
+    chmod go-w '/usr/local/share'
+    chmod -R go-w '/usr/local/share/zsh'
+
+
+    # Add blocks to .zshrc
+    echo "Adding zsh-completions to .zshrc"
+    add_block_to_zshrc "$BREW_COMPINIT_BLOCK"
+    echo "Adding pyenv to .zshrc"
+    add_block_to_zshrc "$PYENV_BLOCK"
+
+    echo "Updates to .zshrc completed."
+
+    # Install optional brew packages
+    prompt_optional_pkg "dockutil"
+    prompt_optional_pkg "git-flow"
+    prompt_optional_pkg "colordiff"
+    prompt_optional_pkg "cowsay"
+    prompt_optional_pkg "speedtest-cli"
+    prompt_optional_pkg "python"
+    prompt_optional_pkg "sqlite"
+    prompt_optional_pkg "mysql"
+    prompt_optional_pkg "postgresql"
+    prompt_optional_pkg "tmux"
+    prompt_optional_pkg "coreutils"
+    prompt_optional_pkg "ansifilter"
+    prompt_optional_pkg "spectacle"
+        
+    install_cask_pkg "iterm2"
+
+    # Prompt for optional cask packages
+    local response
+    read -p "Do you want to install optional cask packages (java, spotify, google-chrome, vlc, kindle)? (y/n): " response
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+        install_cask_pkg "java"
+        install_cask_pkg "spotify"
+        install_cask_pkg "google-chrome"
+        install_cask_pkg "vlc"
+        install_cask_pkg "kindle"
+    else
+        printf "Skipping optional cask packages\n"
+    fi
+
+    # Clone Vundle for Vim
+    printf "Cloning Vundle for Vim...\n"
+    if ! git clone "$GITHUB_VUNDLE_REPO" "$VUNDLE_DIR"; then
+        error_exit "Failed to clone Vundle.vim"
+    fi
+
+    # Clean up outdated brew packages
+    printf "Cleaning up outdated brew packages...\n"
+    if ! brew cleanup; then
+        error_exit "Failed to clean up"
+    fi
+
+    # Configure Git
+    printf "Configuring Git...\n"
+    local name email comment
+    name=$(prompt_user_input 'Type your name, followed by [ENTER]: ')
+    email=$(prompt_user_input 'Type your email, followed by [ENTER]: ')
+    git config --global user.name "$name"
+    git config --global user.email "$email"
+    git config --global core.editor vim
+
+    # Generate SSH key
+    comment=$(prompt_user_input 'Type your comment for SSH key, followed by [ENTER]: ')
+    printf "Generating new SSH key...\n"
+    if ! ssh-keygen -t rsa -b 4096 -C "$comment"; then
+        error_exit "Failed to generate SSH key"
+    fi
+
+    # Display generated SSH public key
+    if [[ -f "$HOME/.ssh/id_rsa.pub" ]]; then
+        printf "Your new SSH public key:\n"
+        cat "$HOME/.ssh/id_rsa.pub"
+    else
+        error_exit "Public SSH key not found"
+    fi
+
+    # Demonstrate `cowsay` if installed
+    if brew list cowsay &>/dev/null; then
+        echo "Congratulations on finishing the setup!" | cowsay -f dragon
+    fi
+
+    # Reload the shell to apply `.zshrc` changes
+    exec zsh
+}
+
+# Execute main function
+main
+
