@@ -61,6 +61,18 @@ prompt_optional_pkg() {
     fi
 }
 
+# Function to prompt for optional installation
+prompt_optional_cask_pkg() {
+    local pkg="$1"
+    local response
+    read -p "Do you want to install the optional cask package $pkg? (y/n): " response
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+        install_cask_pkg "$pkg"
+    else
+        printf "Skipping optional cask package %s\n" "$pkg"
+    fi
+}
+
 # Function to add blocks of commands to .zshrc
 add_block_to_zshrc() {
     local block="$1"
@@ -161,20 +173,15 @@ main() {
     prompt_optional_pkg "ansifilter"
     prompt_optional_pkg "spectacle"
         
-    install_cask_pkg "iterm2"
 
     # Prompt for optional cask packages
-    local response
-    read -p "Do you want to install optional cask packages (java, spotify, google-chrome, vlc, kindle)? (y/n): " response
-    if [[ "$response" =~ ^[Yy]$ ]]; then
-        install_cask_pkg "java"
-        install_cask_pkg "spotify"
-        install_cask_pkg "google-chrome"
-        install_cask_pkg "vlc"
-        install_cask_pkg "kindle"
-    else
-        printf "Skipping optional cask packages\n"
-    fi
+    prompt_optional_cask_pkg "iterm2"
+    prompt_optional_cask_pkg "java"
+    prompt_optional_cask_pkg "spotify"
+    prompt_optional_cask_pkg "google-chrome"
+    prompt_optional_cask_pkg "vlc"
+    prompt_optional_cask_pkg "kindle"
+    prompt_optional_cask_pkg "intellij-idea-ce"
 
     # Clone Vundle for Vim
     printf "Cloning Vundle for Vim...\n"
