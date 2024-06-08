@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Check if pyenv is installed and accessible
 if ! command -v pyenv >/dev/null 2>&1; then
@@ -44,6 +44,13 @@ install_selected_version() {
     fi
 
     printf "Python %s installed successfully.\n" "$selection"
+
+    # Check if the selected version is installed
+    if pyenv versions --bare | grep -q "^${selection}$"; then
+        # Set the selected version as global
+        pyenv global "$selection"
+        printf "Set Python %s as the global version.\n" "$selection"
+    fi
 }
 
 main() {
@@ -56,6 +63,18 @@ main() {
 
     if ! install_selected_version "$available_versions"; then
         return 1
+    fi
+
+    # Path to the add_pyenv_to_zshrc.sh script
+    SCRIPT_PATH="./add_pyenv_to_zshrc.sh"
+
+    # Check if the script exists and is executable
+    if [[ -x "$SCRIPT_PATH" ]]; then
+        # Call the script
+        "$SCRIPT_PATH"
+    else
+        echo "Script $SCRIPT_PATH not found or is not executable."
+        exit 1
     fi
 }
 
