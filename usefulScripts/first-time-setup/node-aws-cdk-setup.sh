@@ -1,10 +1,26 @@
-#!/bin/bash
+#!/bin/sh
 
 set -e
 set -o pipefail
 
+# Function to echo and run commands
+run_command() {
+    echo "$@"
+    "$@"
+}
+
+# Load NVM
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
 function list_node_versions() {
-    nvm ls-remote | grep -i "latest"
+    printf "View Node LTS version online in your browser at https://nodejs.org/en/about/previous-releases"
+    echo "Press any key to continue..."
+    # Use the -n1 option to read only one character and -s to not echo the character
+    read -n1 -s
+    echo "Continuing..."
+    echo 'nvm ls-remote | grep -i "latest"'
+    nvm list-remote | tail -n 10 | grep -o 'v[0-9]*\.[0-9].[0-9]' | sort -uV | uniq
 }
 
 function install_node_version() {
@@ -16,6 +32,8 @@ function install_node_version() {
     fi
     nvm alias default "$nodeversion"
     nvm use "$nodeversion"
+    echo "$nodeversion" > "$HOME/.nvmrc"
+
 }
 
 function install_aws_cdk_lib() {
@@ -134,13 +152,18 @@ function configure_aws_cli() {
     printf "Get access key ID and secret access key from IAM AWS console\n"
     printf "https://us-east-1.console.aws.amazon.com/iamv2/home\n"
     read -p "Press enter to run 'aws configure'"
-    aws configure
+    run_command aws configure
 }
 
 function main() {
+    run_command nvm set-colors cgYmW
     list_node_versions
-    read -p 'Enter node version to install (e.g., 22.1.0): ' nodeversion
+    read -p 'Enter node version to install (e.g., 22.2.0): ' nodeversion
     install_node_version "$nodeversion"
+    run_command npm install -g npm
+    run_command npm install -g eslint
+    run_command npm install -g prettier
+
     install_aws_cdk_lib
     # Print the $HOME variable and ask for installation path
     echo "The home directory is: $HOME"
