@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Define the input files
+file1="invalid_lines.txt"
+file2="final.txt"
+temp_file="temp_file.txt"
+
+# Read lines from file1 into an array
+lines_to_delete=()
+while IFS= read -r line; do
+    lines_to_delete+=("$line")
+done < "$file1"
+
+# Create a temporary file to store the filtered lines
+> "$temp_file"
+
+# Read file2 line by line
+while IFS= read -r line; do
+    # Check if the line is in the lines_to_delete array
+    should_delete=false
+    for delete_line in "${lines_to_delete[@]}"; do
+        if [[ "$line" == "$delete_line" ]]; then
+            should_delete=true
+            break
+        fi
+    done
+
+    # If the line should not be deleted, write it to the temporary file
+    if ! $should_delete; then
+        echo "$line" >> "$temp_file"
+    fi
+done < "$file2"
+
+
