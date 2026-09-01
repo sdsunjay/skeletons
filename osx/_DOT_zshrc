@@ -1,0 +1,239 @@
+# ---------------------------------------------------------------------------
+# Powerlevel10k instant prompt. MUST stay at the very top of .zshrc: anything
+# that prints output or reads input before this point will break it.
+# ---------------------------------------------------------------------------
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+# Path to your oh-my-zsh installation.
+export ZSH="$HOME/.oh-my-zsh"
+
+# Theme. Prefer powerlevel10k when installed; fall back to a font-free theme
+# so a fresh machine (or one without a Nerd Font) still gets a sane prompt.
+# Install p10k with:
+#   git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
+#       "$ZSH/custom/themes/powerlevel10k"
+if [[ -r "$ZSH/custom/themes/powerlevel10k/powerlevel10k.zsh-theme" ]]; then
+  ZSH_THEME="powerlevel10k/powerlevel10k"
+else
+  ZSH_THEME="robbyrussell"
+fi
+
+# Uncomment the following line to use case-sensitive completion.
+# CASE_SENSITIVE="true"
+
+# Uncomment the following line to use hyphen-insensitive completion.
+# Case-sensitive completion must be off. _ and - will be interchangeable.
+HYPHEN_INSENSITIVE="true"
+
+# Uncomment one of the following lines to change the auto-update behavior
+# zstyle ':omz:update' mode disabled  # disable automatic updates
+zstyle ':omz:update' mode auto      # update automatically without asking
+# zstyle ':omz:update' mode reminder  # just remind me to update when it's time
+
+# Uncomment the following line to change how often to auto-update (in days).
+# zstyle ':omz:update' frequency 13
+
+# Uncomment the following line if pasting URLs and other text is messed up.
+# DISABLE_MAGIC_FUNCTIONS="true"
+
+# Uncomment the following line to disable colors in ls.
+# DISABLE_LS_COLORS="true"
+
+# Uncomment the following line to disable auto-setting terminal title.
+DISABLE_AUTO_TITLE="true"
+
+# Uncomment the following line to enable command auto-correction.
+# ENABLE_CORRECTION="true"
+
+# Uncomment the following line to display red dots whilst waiting for completion.
+# You can also set it to another string to have that shown instead of the default red dots.
+# e.g. COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
+# Caution: this setting can cause issues with multiline prompts in zsh < 5.7.1 (see #5765)
+COMPLETION_WAITING_DOTS="true"
+
+# Uncomment the following line if you want to disable marking untracked files
+# under VCS as dirty. This makes repository status check for large repositories
+# much, much faster.
+# DISABLE_UNTRACKED_FILES_DIRTY="true"
+
+# Uncomment the following line if you want to change the command execution time
+# stamp shown in the history command output.
+# You can set one of the optional three formats:
+# "mm/dd/yyyy"|"dd.mm.yyyy"|"yyyy-mm-dd"
+# or set a custom format using the strftime function format specifications,
+# see 'man strftime' for details.
+# HIST_STAMPS="mm/dd/yyyy"
+
+# History. Previously unset, so only zsh's small in-memory default applied.
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=50000
+SAVEHIST=50000
+setopt HIST_IGNORE_ALL_DUPS   # drop older duplicates of a repeated command
+setopt HIST_IGNORE_SPACE      # a leading space keeps a command out of history
+setopt HIST_REDUCE_BLANKS
+setopt HIST_VERIFY            # expand !! into the line for review, don't run it blind
+setopt SHARE_HISTORY          # share history across concurrent iTerm tabs
+setopt EXTENDED_HISTORY       # record timestamp + duration
+
+# Would you like to use another custom folder than $ZSH/custom?
+# ZSH_CUSTOM=/path/to/new-custom-folder
+
+# Which plugins would you like to load?
+# Standard plugins can be found in $ZSH/plugins/
+# Custom plugins may be added to $ZSH_CUSTOM/plugins/
+# Example format: plugins=(rails git textmate ruby lighthouse)
+# Add wisely, as too many plugins slow down shell startup.
+#
+# NOTE: zsh-syntax-highlighting must be LAST -- it wraps the ZLE widgets that
+# earlier plugins define, so anything loaded after it is not highlighted.
+plugins=(git brew virtualenv zsh-syntax-highlighting)
+
+# Homebrew must be initialised BEFORE oh-my-zsh, because oh-my-zsh runs
+# compinit and only picks up completion functions already present in $FPATH.
+# Previously brew's site-functions were appended afterwards, so `brew`
+# completions silently never loaded.
+eval "$(/opt/homebrew/bin/brew shellenv)"
+FPATH="/opt/homebrew/share/zsh/site-functions:$FPATH"
+
+# Completions you own outright, ahead of brew's. Use this for tools whose
+# shipped completion lives in another user's directory -- e.g. Docker Desktop's
+# which compinit correctly refuses to trust. Regenerate yours with:
+#   docker completion zsh > ~/.zsh/completions/_docker
+[[ -d "$HOME/.zsh/completions" ]] && FPATH="$HOME/.zsh/completions:$FPATH"
+
+source $ZSH/oh-my-zsh.sh
+
+# User configuration
+
+# export MANPATH="/usr/local/man:$MANPATH"
+
+# You may need to manually set your language environment
+# export LANG=en_US.UTF-8
+
+# Preferred editor for local and remote sessions
+export EDITOR='vim'
+
+# Compilation flags
+# export ARCHFLAGS="-arch x86_64"
+
+# Set personal aliases, overriding those provided by oh-my-zsh libs,
+# plugins, and themes. Aliases can be placed here, though oh-my-zsh
+# users are encouraged to define aliases within the ZSH_CUSTOM folder.
+# For a full list of active aliases, run `alias`.
+#
+# Example aliases
+# alias zshconfig="mate ~/.zshrc"
+# alias ohmyzsh="mate ~/.oh-my-zsh"
+if [ -f ~/.my_aliases ]; then
+    source ~/.my_aliases
+fi
+
+# Homebrew + FPATH are initialised above, before oh-my-zsh runs compinit.
+
+test -e "${HOME}/.iterm2_shell_integration.zsh" && source "${HOME}/.iterm2_shell_integration.zsh"
+
+# Disable beeping
+setopt NO_BEEP
+
+# ---------------------------------------------------------------------------
+# pyenv -- lazy loaded (~400ms -> ~0ms)
+#
+# The shims do the real work. With $PYENV_ROOT/shims on PATH, `python`, `pip`
+# and every installed console script already resolve to the correct version
+# AND the correct virtualenv named in a project's .python-version -- with no
+# `pyenv init` at all. Verified: in a directory whose .python-version is
+# `bedrock-cli`, sys.prefix resolves to .pyenv/versions/bedrock-cli off the
+# shims alone.
+#
+# What the init hooks add on top is (a) the `pyenv` shell function, needed for
+# `pyenv shell` and `pyenv activate`, which must mutate the current shell, and
+# (b) the precmd hook that exports $VIRTUAL_ENV. Neither is needed until you
+# actually type `pyenv`, so both load on first use.
+#
+# Practical difference day to day: $VIRTUAL_ENV stays unset until you run a
+# pyenv command. python/pip/console scripts are unaffected.
+# ---------------------------------------------------------------------------
+export PYENV_ROOT="$HOME/.pyenv"
+export PYENV_SHELL=zsh   # normally set by `pyenv init -`; some tools read it
+path=("$PYENV_ROOT/shims" $path)
+
+# First `pyenv ...` call swaps this stub for the real thing, then re-dispatches.
+pyenv() {
+  unfunction pyenv
+  eval "$(command pyenv init -)"
+  eval "$(command pyenv virtualenv-init -)"
+  # Fire the hook once for the directory we are already standing in, so
+  # $VIRTUAL_ENV is correct immediately rather than after the next prompt.
+  typeset -f _pyenv_virtualenv_hook >/dev/null && _pyenv_virtualenv_hook
+  pyenv "$@"
+}
+
+# ---------------------------------------------------------------------------
+# nvm -- lazy loaded (~1230ms -> ~0ms)
+# Sourcing nvm.sh and running `nvm use` on every shell was the single biggest
+# startup cost. Instead: put the default node's bin dir straight on PATH, and
+# only source nvm.sh the first time an nvm-managed command is actually called.
+# ---------------------------------------------------------------------------
+export NVM_DIR="$HOME/.nvm"
+
+# The version that lands on PATH for every shell. Deliberately hardcoded:
+# resolving `nvm alias default` at startup would mean either sourcing nvm.sh
+# (the ~1230ms this block exists to avoid) or parsing $NVM_DIR/alias/default,
+# which may itself point at another alias (lts/*, node, ...) rather than a
+# concrete version.
+#
+# The tradeoff is that it can drift from nvm's own default. Keep them in sync --
+# otherwise `nvm use default` and `nvm install --reinstall-packages-from=default`
+# will silently disagree with what is actually on PATH:
+#   nvm alias default 22.19.0
+NVM_DEFAULT_NODE="22.19.0"
+
+# node/npm/npx are available immediately, with no nvm involvement.
+if [[ -d "$NVM_DIR/versions/node/v$NVM_DEFAULT_NODE/bin" ]]; then
+  path=("$NVM_DIR/versions/node/v$NVM_DEFAULT_NODE/bin" $path)
+fi
+
+# Only `nvm` itself is wrapped. node/npm/npx/yarn/corepack all live in the bin
+# dir added above, so they run at full speed and never trigger the nvm load.
+# The first `nvm ...` call replaces this stub with the real thing.
+nvm() {
+  unfunction nvm
+  [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"
+  [ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] \
+    && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"
+  nvm "$@"
+}
+
+export OP_BIOMETRIC_UNLOCK_ENABLED=true
+[ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
+
+# `gh` is authenticated to github.com or self-hosted GHES
+#
+# GH_HOST is intentionally NOT exported globally: it overrides gh's per-repo
+# remote detection, so `gh` inside a github.com repo would silently talk to the
+# enterprise host. gh resolves the right host from the git remote on its own.
+# Override per-command when you need to: GH_HOST=github.blah.blah gh repo list
+#
+
+# ---------------------------------------------------------------------------
+# PATH. `typeset -U path` makes the array unique, so re-running this file or
+# nesting shells can no longer accumulate duplicates.
+# Removed: /usr/local/opt/ruby/bin  (Intel brew prefix -- does not exist on
+#                                    Apple Silicon; ruby resolves to /usr/bin)
+#          $(pyenv root)/bin        (does not exist; pyenv comes from brew)
+#          $(nvm current) subshell  (forked a process for a known value)
+# ---------------------------------------------------------------------------
+typeset -U path fpath
+
+path=(
+  /opt/homebrew/opt/libpq/bin
+  "$HOME/.codeium/windsurf/bin"
+  $path
+  "$HOME/.local/bin"
+)
+
+
+# Powerlevel10k prompt configuration. Run `p10k configure` to regenerate.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
