@@ -1,68 +1,70 @@
-# System Commands
-# alias ls='ls --color=auto -h --group-directories-first'
-# enable color support of ls and also add handy aliases
-if [ -x /bin/dircolors -o -x /usr/bin/dircolors ]; then
-    eval "`dircolors -b`"
-    alias ls='ls --color=auto'
-    alias grep='grep --color=auto'
-fi
+# ~/.bash_aliases -- sourced by ~/.bashrc (and safe to source from ~/.zshrc).
+# Targets macOS (BSD userland); falls back to GNU flags where coreutils are in use.
 
-alias mount='mount |column -t'
-alias gc="gcc -ansi -Wall -pedantic-errors"
+# System Commands
+# Color output: GNU ls understands --color, BSD (macOS) ls uses -G.
+if ls --color=auto -d . >/dev/null 2>&1; then
+    command -v dircolors >/dev/null 2>&1 && eval "$(dircolors -b)"
+    alias ls='ls --color=auto -h'
+else
+    export CLICOLOR=1
+    alias ls='ls -Gh'
+fi
+alias grep='grep --color=auto'
+alias ll='ls -lA'
+
+alias mounts='mount | column -t'   # don't shadow mount itself, it breaks `mount <dev>`
+alias gc='gcc -ansi -Wall -pedantic-errors'
 alias rm='rm -i'
 alias mkdir='mkdir -pv'
 
 # Helpful for my website
-alias rsyn="rsync -ravvvvvv --exclude 'CMD' --exclude 'RS' --exclude '*.jpg' --exclude 'blog' --exclude 'protected' --exclude 'RS' --exclude 'vim' --exclude 'security'  --exclude '*.JPG' --exclude '*.jpeg' --exclude '*.JPEG' --exclude '*.png' --exclude '*.mov' --exclude '*.MOV' --exclude 'Resume.pdf' -e 'ssh -p 73' root@172.245.22.244:/usr/share/nginx/html ."
-alias findBigFiles="find . -type f -exec ls -s {} \; | sort -n -r | head -10"
-alias scpMe="~/cpe/usefulScripts/testing.sh $1 $2 $3"
+alias rsyn="rsync -av --exclude 'CMD' --exclude 'RS' --exclude 'blog' --exclude 'protected' --exclude 'vim' --exclude 'security' --exclude '*.jpg' --exclude '*.JPG' --exclude '*.jpeg' --exclude '*.JPEG' --exclude '*.png' --exclude '*.mov' --exclude '*.MOV' --exclude 'Resume.pdf' -e 'ssh -p 73' root@172.245.22.244:/usr/share/nginx/html ."
+alias findBigFiles='find . -type f -exec du -k {} + 2>/dev/null | sort -nr | head -10'
+
+# Aliases can't take positional args ($1 $2 $3 expanded to nothing), so call the script directly.
+scpMe() { "$HOME/cpe/usefulScripts/scpMe.sh" "$@"; }
 
 # OS X specific
 alias vlc='/Applications/VLC.app/Contents/MacOS/VLC'
 
 #############################
 
-# Not all of these work in OS X
-#System information shortcuts
-## pass options to free ## 
-alias meminfo='free -m -l -t'
- 
+# System information shortcuts (macOS equivalents of free/lscpu/Xorg)
+alias meminfo='top -l 1 -s 0 | grep PhysMem; vm_stat'
+
 ## get top process eating memory
-alias psmem='ps auxf | sort -nr -k 4'
-alias psmem10='ps auxf | sort -nr -k 4 | head -10'
- 
-## get top process eating cpu ##
-alias pscpu='ps auxf | sort -nr -k 3'
-alias pscpu10='ps auxf | sort -nr -k 3 | head -10'
- 
-## Get server cpu info ##
-alias cpuinfo='lscpu'
- 
-## older system use /proc/cpuinfo ##
-##alias cpuinfo='less /proc/cpuinfo' ##
- 
-## get GPU ram on desktop / laptop## 
-alias gpumeminfo='grep -i --color memory /var/log/Xorg.0.log'
- 
-## set some other defaults ##
+alias psmem='ps aux -m'
+alias psmem10='ps aux -m | head -11'
+
+## get top process eating cpu
+alias pscpu='ps aux -r'
+alias pscpu10='ps aux -r | head -11'
+
+## Get cpu info
+alias cpuinfo='sysctl -n machdep.cpu.brand_string; sysctl hw.physicalcpu hw.logicalcpu hw.memsize'
+
+## get GPU info (VRAM, displays)
+alias gpumeminfo='system_profiler SPDisplaysDataType'
+
+## set some other defaults
 alias quota='df -H'
 alias df='df -H'
 alias du='du -ch'
- 
-#Aliases copied from Eriq 
+
+# Aliases copied from Eriq
 
 ################
-alias quit="exit"
+alias quit='exit'
 
-alias valgrindfull="valgrind --leak-check=full --show-reachable=yes --track-origins=yes"
+alias valgrindfull='valgrind --leak-check=full --show-reachable=yes --track-origins=yes'
 
-alias myip="curl http://cfaj.freeshell.org/ipaddr.cgi"
+alias myip='curl -fsS https://api.ipify.org; echo'
 
-alias noSleep="xset s off; xset -dpms"
+# Keep the display awake until Ctrl-C (xset doesn't exist on macOS)
+alias noSleep='caffeinate -d'
 ################
 
-function mkcd
-{
-   mkdir $1;
-   cd $1;
+mkcd() {
+    mkdir -p -- "$1" && cd -- "$1"
 }
