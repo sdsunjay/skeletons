@@ -41,7 +41,8 @@
 #   EXPOSE_LAN=1                   1 = listen on 0.0.0.0 and allow the LAN subnet
 #   LLM_PORT=8080                  llama-server port
 #   THREADS=<physical cores>       inference threads (auto-detected; not SMT threads)
-#   CTX=32768                      context window
+#   CTX=65536                      context window (coding agents need 64K+)
+#   MODEL_ALIAS=ornith             model name clients ask for (--alias)
 #   DOWNLOAD_MODEL=1               0 = skip the ~23GB model download
 #   MODEL_URL=<Ornith-1.5-35B-A3B Heretic APEX-I-Quality>   any direct GGUF URL
 #
@@ -90,7 +91,8 @@ SWAP_SIZE_GB="${SWAP_SIZE_GB:-4}"
 SWAPFILE="/swapfile"
 EXPOSE_LAN="${EXPOSE_LAN:-1}"
 LLM_PORT="${LLM_PORT:-8080}"
-CTX="${CTX:-32768}"
+CTX="${CTX:-65536}"
+MODEL_ALIAS="${MODEL_ALIAS:-ornith}"
 DOWNLOAD_MODEL="${DOWNLOAD_MODEL:-1}"
 # Ornith-1.5-35B-A3B, Heretic abliteration (SC117), APEX-I-Quality, 23.5 GB:
 # attention Q6_K, shared experts Q8_0, routed experts ~Q4.  Lowest published
@@ -369,9 +371,14 @@ PORT=${LLM_PORT}
 # Physical cores only.  Hyperthreads slow memory-bound inference down.
 THREADS=${THREADS}
 
-# Context window.  KV cache is q8_0, so 32K costs a few GB; 128K is fine on 64GB
-# but generation slows as the cache fills.
+# Context window.  KV cache is q8_0, so 64K costs a few GB; 128K is fine on 64GB
+# but generation slows as the cache fills.  Coding agents (pi, Claude Code)
+# need 64K+: their system prompt and tool output add up fast.
 CTX=${CTX}
+
+# Name the model answers to (clients send this as "model"; must match what
+# ANTHROPIC_MODEL / models.json / --model in your agent says).
+MODEL_ALIAS=${MODEL_ALIAS}
 
 # Ornith-1.5 recommended sampling (model card): thinking mode is on by default.
 # For stock Qwen3.6 non-thinking chat use instead:
@@ -383,14 +390,15 @@ SAMPLING_ARGS="--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0"
 # RAM (no mmap), which is what --mlock wants anyway.
 IK_ARGS="-fmoe -rtr"
 
-# llama.cpp (mainline) only.  The default model ships an MTP draft head, so
-# speculative decoding is on (try --spec-draft-n-max 1..6; remove both flags
-# for a GGUF without an MTP head).
-# To stop the model thinking by default:
-#   --chat-template-kwargs {"enable_thinking":false}
-# To cap thinking:
-#   --reasoning-budget 4096
-MAINLINE_ARGS="--spec-type draft-mtp --spec-draft-n-max 2"
+# llama.cpp (mainline) only.
+# - MTP speculative decoding is on because the default model ships a draft
+#   head (try --spec-draft-n-max 1..6; remove both flags for a plain GGUF).
+# - Thinking stays on but is capped at 1024 tokens per reply: at CPU speeds
+#   that is ~2.5 minutes worst case per agent step, and most steps use far
+#   less.  Raise to 2048 for planning-heavy work; -1 = unlimited; 0 = off.
+#   To turn thinking off entirely instead:
+#     --chat-template-kwargs {"enable_thinking":false}
+MAINLINE_ARGS="--spec-type draft-mtp --spec-draft-n-max 2 --reasoning-budget 1024"
 
 # Anything else, passed to either engine verbatim.
 EXTRA_ARGS=""
@@ -431,6 +439,8 @@ exec "\${BIN}" \\
     --host "\${HOST}" --port "\${PORT}" \\
     -t "\${THREADS}" -tb "\${THREADS}" \\
     -c "\${CTX}" -np 1 \\
+    --alias "\${MODEL_ALIAS:-ornith}" \\
+    --cache-reuse 256 \\
     --mlock \\
     -ctk q8_0 -ctv q8_0 \\
     --jinja \\
