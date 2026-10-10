@@ -51,18 +51,22 @@
 #     man pages...), asked about one package at a time
 #   - zsh as the login shell, plus aliases/history/completion defaults in
 #     the user's ~/.zshrc (in a marked block that re-runs replace; the block
-#     also exports the llama-server API key, so the file is set to mode 600)
+#     also exports the llama-server API key, so the file is set to mode 600;
+#     without a key an existing file keeps its mode)
 #   - clock and timezone check (the timezone is kept unless you change it)
 #   - hardware sanity check: confirms the RAM is seen and prints the DIMMs
 #   - optional Ubuntu Pro attach (explains the benefits, offers to install
 #     the client, skipped automatically if already attached)
-#   - swap file (a safety net only; models must fit in RAM)
+#   - swap file (a safety net only; models must fit in RAM); an existing
+#     file of another size is reused only if you say so, never resized
 #   - CPU-inference tuning: swappiness, transparent hugepages, performance
 #     CPU governor
-#   - SSH + ufw (SSH from anywhere, the LLM API from the local subnet only)
+#   - SSH + ufw (SSH from anywhere, on every port sshd listens on; the LLM
+#     API from the local subnet only; the detected subnet is shown and can be
+#     changed; a re-run replaces the LLM API rule of the run before)
 #   - optional key-only SSH (no passwords, no root), skipped unless you say
-#     yes; refuses unless your user already has a key, and asks once more
-#     before changing anything
+#     yes; refuses unless your user already has a key and sshd accepts keys,
+#     and asks once more before changing anything
 #   - optional mDNS (avahi) so the machine answers to <hostname>.local, on
 #     one network interface only (the wired one configured in /etc/netplan)
 #   - unattended security updates, and a needrestart rule so a package
@@ -71,7 +75,8 @@
 #   - service user and model directory (name and path are your choice)
 #   - builds ik_llama.cpp and/or llama.cpp from source with native CPU flags
 #   - an updater script for the engines
-#   - model download, chosen from a menu or any GGUF URL
+#   - model download, chosen from a menu or any GGUF URL (a menu model comes
+#     from a pinned revision and is checked against its size and SHA-256)
 #   - llama-server config (including an API key), wrapper and hardened
 #     systemd service, then starts it and waits for it to report healthy
 #   - a login message showing the server's state, model, address, memory and
@@ -84,6 +89,9 @@
 #   SHELL_USER, EXPOSE_LAN, LLM_PORT, THREADS, CTX, MODEL_ALIAS, API_KEY,
 #   MODEL_URL, MODEL_DIR, LLM_USER, IK_DIR, MAINLINE_DIR, CONF, WRAPPER,
 #   UPDATER, MIN_EXPECTED_RAM_GB, TIMEZONE, SSH_USER, MDNS_DEV
+# On a re-run the values in the existing llama-server config file are the
+# defaults shown for its settings, so Enter keeps a hand-tuned config (an
+# environment variable still comes first).
 #
 # Models in the menu:
 #   Ornith-1.5-35B-A3B (Qwen3.5-MoE architecture, ~3B active, MIT) is a
@@ -126,6 +134,13 @@ set -Eeuo pipefail
 # Defaults (environment variables override them as the shown default)
 # ---------------------------------------------------------------------------
 
+# Config-file settings given in the environment: these come before the values
+# of an existing config file (see conf_defaults).
+declare -A FROM_ENV=()
+for v in ENGINE IK_DIR MAINLINE_DIR EXPOSE_LAN LLM_PORT THREADS CTX MODEL_ALIAS; do
+    if [[ -n "${!v:-}" ]]; then FROM_ENV[${v}]=1; fi
+done
+
 ENGINE="${ENGINE:-mainline}"
 BUILD_ENGINES="${BUILD_ENGINES:-ik mainline}"
 SWAP_SIZE_GB="${SWAP_SIZE_GB:-4}"
@@ -163,6 +178,17 @@ MOTD_SCRIPT="/etc/update-motd.d/60-llama-server"
 
 # Model menu.  MODEL_MTP: 1 = the GGUF carries an MTP draft head (mainline
 # MTP flags are offered by default), 0 = plain GGUF.
+#
+# The five arrays are parallel: keep them in the same order.  MODEL_SIZES
+# (bytes) and MODEL_SHA256 are what a download is checked against.  Each URL
+# is pinned to the repository commit (the hash after /resolve/) those values
+# belong to, so a later re-upload cannot make the check fail; it also means
+# the menu never picks up a newer upload by itself.  Last verified against
+# Hugging Face on 2026-10-10.  Re-verify every now and then, and whenever the
+# menu changes: that each URL still resolves, and whether "main" has moved on
+# (x-repo-commit of the same URL with /resolve/main/).  To update a model,
+# change its commit, size and hash together; all three are in the reply to
+#   curl -sI <url> | grep -iE 'x-repo-commit|x-linked'
 MODEL_NAMES=(
     "Ornith-1.5-35B-A3B Heretic, APEX-I-Quality (23.5 GB) - lowest divergence from the original"
     "Ornith-1.5-35B-A3B Heretic, APEX-I-Compact (17.3 GB) - ~25% fewer bytes per token, so faster"
@@ -170,10 +196,22 @@ MODEL_NAMES=(
     "Qwen3.6-35B-A3B, Unsloth UD-Q4_K_XL (22.4 GB) - stock general-purpose model"
 )
 MODEL_URLS=(
-    "https://huggingface.co/SC117/Ornith-1.5-35B-A3B-Heretic-MTP-APEX-GGUF/resolve/main/Ornith-1.5-35B-A3B-Heretic-MTP-APEX-I-Quality.gguf"
-    "https://huggingface.co/SC117/Ornith-1.5-35B-A3B-Heretic-MTP-APEX-GGUF/resolve/main/Ornith-1.5-35B-A3B-Heretic-MTP-APEX-I-Compact.gguf"
-    "https://huggingface.co/peculiar-ragdoll/Cyber-Tiel-Coder-35B-A3B-GGUF-MTP/resolve/main/Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q4_K_XL.gguf"
-    "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"
+    "https://huggingface.co/SC117/Ornith-1.5-35B-A3B-Heretic-MTP-APEX-GGUF/resolve/f85f0cc68d86d8620ee1826f41701dd99a1e3829/Ornith-1.5-35B-A3B-Heretic-MTP-APEX-I-Quality.gguf"
+    "https://huggingface.co/SC117/Ornith-1.5-35B-A3B-Heretic-MTP-APEX-GGUF/resolve/f85f0cc68d86d8620ee1826f41701dd99a1e3829/Ornith-1.5-35B-A3B-Heretic-MTP-APEX-I-Compact.gguf"
+    "https://huggingface.co/peculiar-ragdoll/Cyber-Tiel-Coder-35B-A3B-GGUF-MTP/resolve/fa19d4f33561dc0d107c2a2f8943f1ca2e288109/Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q4_K_XL.gguf"
+    "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/a483e9e6cbd595906af30beda3187c2663a1118c/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"
+)
+MODEL_SIZES=(
+    23485628064
+    17330906784
+    22749880640
+    22360456160
+)
+MODEL_SHA256=(
+    "2dd85b592447b488b9386ad08e8edf4b94ed61024df6e07213aa3bc1bf94517c"
+    "37f678613ca5efd71b23ce1c3811da8d8f077c79be059104d7b216539bdbe0e7"
+    "0bbcf3cc9be4c976bad20e641baf629dad9c178d39ebdc9cd72129179943c06a"
+    "707a55a8a4397ecde44de0c499d3e68c1ad1d240d1da65826b4949d1043f4450"
 )
 MODEL_MTP=(1 1 1 0)
 
@@ -181,11 +219,14 @@ MODEL_MTP=(1 1 1 0)
 declare -A ASKED=()     # settings already asked for, so each is asked once
 MODEL_CHOSEN=0          # 1 once the model menu has been answered
 MODEL_HAS_MTP=0         # 1 if the chosen model carries an MTP head
+MODEL_SIZE_WANT=""      # expected size in bytes of the chosen menu model
+MODEL_SHA256_WANT=""    # its expected SHA-256; both empty = nothing to check
 MODEL_FILE=""           # full path of the GGUF the service will use
 HARDEN_SECCOMP=0        # 1 = also add the seccomp-based unit directives
 HARDEN_MDWE=0           # 1 = also add MemoryDenyWriteExecute=yes
 DEFAULT_DEV=""          # network interface of the default route (detect_lan)
 LAN_CIDR=""             # local subnet the LLM API is opened to (detect_lan)
+FW_CIDR=""              # the same, as kept or changed in the firewall section
 BASIC_SELECTED=()       # packages picked in "Minimized-install basics"
 CURRENT_TZ=""           # timezone found by "Time and timezone"
 SECTION_NO=0
@@ -196,6 +237,8 @@ FAILED=()               # titles of the sections whose commands failed
 FAILED_WHY=()           # same order as FAILED: what failed, for the end report
 BODY_DEPTH=0            # subshell depth on_err reports at (see run_body)
 FAIL_INFO=""            # file a failing section body leaves its error in
+CONF_SEEDED=0           # 1 once conf_defaults has read the existing config
+CONF_MODEL=""           # MODEL= of the existing config file (conf_defaults)
 EXIT_INPUT_CLOSED=3     # exit status when the terminal input is closed
 
 # on_err STATUS LINE COMMAND: the ERR trap.  Says which section and command
@@ -218,6 +261,10 @@ on_err() {
 }
 
 trap 'on_err "$?" "${LINENO}" "${BASH_COMMAND}"' ERR
+# Never leave run_body's temp file behind, however the script ends (Ctrl-C
+# included).  Subshells do not inherit this trap, so a section body ending
+# does not remove the file before run_body has read it.
+trap 'if [[ -n "${FAIL_INFO}" ]]; then rm -f "${FAIL_INFO}"; fi' EXIT
 
 # ---------------------------------------------------------------------------
 # Prompt helpers
@@ -301,9 +348,9 @@ deps_ok() {
     if confirm_no "  Run this section anyway?"; then
         return 0
     fi
-    echo "  Skipped: ${DONE[-1]} (missing dependencies)"
-    SKIPPED+=("${DONE[-1]} (missing dependencies)")
-    unset 'DONE[-1]'
+    echo "  Skipped: ${SECTION_TITLE} (missing dependencies)"
+    SKIPPED+=("${SECTION_TITLE} (missing dependencies)")
+    if ((${#DONE[@]} > 0)) && [[ "${DONE[-1]}" == "${SECTION_TITLE}" ]]; then unset 'DONE[-1]'; fi
     return 1
 }
 
@@ -386,7 +433,51 @@ v_user()     { [[ "$1" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
 v_alias()    { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]; }
 v_api_key()  { [[ "$1" =~ ^[A-Za-z0-9._-]*$ ]]; }
 v_path()     { [[ "$1" =~ ^/[A-Za-z0-9._/-]*[A-Za-z0-9._-]$ && "$1" != *..* ]]; }
+# v_cidr SUBNET: an IPv4 subnet a.b.c.d/n.  A /0 (everyone) is refused, and
+# the validator says so.
+v_cidr() {
+    local o
+    [[ "$1" =~ ^((0|[1-9][0-9]{0,2})\.){3}(0|[1-9][0-9]{0,2})/(0|[1-9][0-9]?)$ ]] || return 1
+    for o in ${1//[.\/]/ }; do
+        ((o <= 255)) || return 1
+    done
+    ((${1##*/} <= 32)) || return 1
+    if ((${1##*/} == 0)); then
+        echo "  $1 is every address there is: that would open the LLM API to everyone."
+        return 1
+    fi
+}
 v_gguf_name() { [[ "$1" =~ ^[A-Za-z0-9._-]+\.gguf$ ]]; }
+# v_safe_path PATH: v_path, and not somewhere any user can write.  Used for
+# what root writes or the service reads: under /tmp, /var/tmp or /dev/shm
+# (after resolving symlinks), or below a world-writable directory, another
+# user could swap the file; the service (PrivateTmp) cannot see /tmp anyway.
+# Says why when it rejects a path for its location.
+v_safe_path() {
+    local real dir mode via=""
+    v_path "$1" || return 1
+    real="$(realpath -m -- "$1" 2>/dev/null)" || real="$1"
+    [[ "${real}" == "$1" ]] || via=" (it resolves to ${real})"
+    case "${real}/" in
+        /tmp/* | /var/tmp/* | /dev/shm/*)
+            echo "  $1 is under /tmp, /var/tmp or /dev/shm${via}."
+            return 1
+            ;;
+    esac
+    dir="${real}"
+    while :; do
+        if [[ -d "${dir}" ]]; then
+            mode="$(stat -c %a -- "${dir}" 2>/dev/null)" || mode=0
+            if ((8#${mode} & 2)); then
+                echo "  $1 is in or below ${dir}, a directory every user can write to."
+                return 1
+            fi
+        fi
+        [[ "${dir}" == / ]] && break
+        dir="$(dirname -- "${dir}")"
+    done
+    return 0
+}
 v_url()      { [[ "$1" =~ ^https://[^[:space:]]+$ ]]; }
 v_engines()  {
     local e seen=0
@@ -466,6 +557,8 @@ gen_api_key() {
 # ---------------------------------------------------------------------------
 
 PATH_HINT="Use an absolute path of letters, digits, . _ - and / only (no spaces)."
+CIDR_HINT="Use an IPv4 subnet such as 192.168.1.0/24 (not 0.0.0.0/0)."
+SAFE_PATH_HINT="${PATH_HINT}  Not under /tmp, /var/tmp or /dev/shm, and not in a world-writable directory."
 
 detect_phys_cores() {
     local n
@@ -585,11 +678,88 @@ cpu_temp_c() {
     return 0
 }
 
+# sshd_settings: print the settings sshd really uses ('sshd -T').  Fails if
+# sshd cannot report them.
+sshd_settings() {
+    # Privilege-separation directory sshd needs even for a config check; it is
+    # missing while a socket-activated sshd has not been started yet.
+    [[ -d /run/sshd ]] || mkdir -m 0755 /run/sshd 2>/dev/null || true
+    sshd -T 2>/dev/null
+}
+
+# conf_value KEY: print the value of KEY in the existing config file.  The
+# file is read as text, not sourced.  Understands what this script writes
+# ('...') and simple hand edits ("..." or a bare word); fails on anything
+# else, and if the file or the key is missing.
+conf_value() {
+    local val
+    [[ -f "${CONF}" ]] || return 1
+    val="$(grep -E "^$1=" "${CONF}" 2>/dev/null | tail -n 1)" || return 1
+    [[ -n "${val}" ]] || return 1
+    val="${val#*=}"
+    case "${val}" in
+        \'*\')
+            val="${val:1:${#val}-2}"
+            val="${val//\'\\\'\'/$'\n'}"
+            [[ "${val}" != *\'* ]] || return 1
+            val="${val//$'\n'/\'}"
+            ;;
+        \"*\")
+            val="${val:1:${#val}-2}"
+            [[ "${val}" != *[\"\$\`\\]* ]] || return 1
+            ;;
+        *)
+            [[ "${val}" =~ ^[A-Za-z0-9._/:+,=@%-]*$ ]] || return 1
+            ;;
+    esac
+    printf '%s' "${val}"
+}
+
+# conf_or KEY DEFAULT: the value of KEY in the existing config file, else
+# DEFAULT.
+conf_or() {
+    conf_value "$1" || printf '%s' "$2"
+}
+
+# conf_defaults: on a re-run, make the values in the existing config file the
+# defaults shown at the prompts, so that Enter keeps a hand-tuned config.
+# Order: environment variable, then the config file, then the built-in
+# default.  A setting that was already asked for is left alone, and so is a
+# value that is missing, not plain KEY=value text, or not valid.  Asks for
+# the config file path first; called wherever one of these settings is asked.
+conf_defaults() {
+    local pair key var check val
+    ((CONF_SEEDED == 0)) || return 0
+    CONF_SEEDED=1
+    [[ -n "${ASKED[CONF]:-}" ]] \
+        || echo "  (If the llama-server config file exists, its values are the defaults offered.)"
+    ask_value CONF "Config file path" "${CONF}" v_safe_path "${SAFE_PATH_HINT}"
+    [[ -f "${CONF}" ]] || return 0
+    for pair in ENGINE:ENGINE:v_engine IK_DIR:IK_DIR:v_safe_path MAINLINE_DIR:MAINLINE_DIR:v_safe_path \
+        PORT:LLM_PORT:v_port THREADS:THREADS:v_posint CTX:CTX:v_posint MODEL_ALIAS:MODEL_ALIAS:v_alias; do
+        IFS=: read -r key var check <<<"${pair}"
+        [[ -z "${FROM_ENV[${var}]:-}" && -z "${ASKED[${var}]:-}" ]] || continue
+        val="$(conf_value "${key}")" || continue
+        "${check}" "${val}" >/dev/null || continue
+        printf -v "${var}" '%s' "${val}"
+    done
+    if [[ -z "${FROM_ENV[EXPOSE_LAN]:-}" && -z "${ASKED[EXPOSE_LAN]:-}" ]]; then
+        case "$(conf_or HOST "")" in
+            0.0.0.0) EXPOSE_LAN=1 ;;
+            127.0.0.1) EXPOSE_LAN=0 ;;
+        esac
+    fi
+    CONF_MODEL="$(conf_or MODEL "")"
+    v_path "${CONF_MODEL}" || CONF_MODEL=""
+}
+
 ask_port() {
+    conf_defaults
     ask_value LLM_PORT "llama-server port" "${LLM_PORT}" v_port "Use a number from 1 to 65535."
 }
 
 ask_expose_lan() {
+    conf_defaults
     ask_value EXPOSE_LAN "Expose the LLM API to the local network? (1 = LAN, 0 = localhost only)" \
         "${EXPOSE_LAN}" v_01 "Type 1 or 0."
 }
@@ -606,7 +776,7 @@ ask_llm_user() {
 ask_api_key() {
     local def="${API_KEY}" old
     [[ -n "${ASKED[API_KEY]:-}" ]] && return 0
-    ask_value CONF "Config file path" "${CONF}" v_path "${PATH_HINT}"
+    ask_value CONF "Config file path" "${CONF}" v_safe_path "${SAFE_PATH_HINT}"
     if [[ -z "${def}" ]]; then
         # A config that has API_KEY= (empty) means "no key": keep that.
         old=__unset__
@@ -633,24 +803,26 @@ ask_api_key() {
 }
 
 ask_model_dir() {
-    ask_value MODEL_DIR "Model directory" "${MODEL_DIR}" v_path "${PATH_HINT}"
+    ask_value MODEL_DIR "Model directory" "${MODEL_DIR}" v_safe_path "${SAFE_PATH_HINT}"
 }
 
 ask_engine_dirs() {
     local e
+    conf_defaults
     for e in ${BUILD_ENGINES}; do
         case "${e}" in
-            ik) ask_value IK_DIR "ik_llama.cpp source/build directory" "${IK_DIR}" v_path "${PATH_HINT}" ;;
-            mainline) ask_value MAINLINE_DIR "llama.cpp source/build directory" "${MAINLINE_DIR}" v_path "${PATH_HINT}" ;;
+            ik) ask_value IK_DIR "ik_llama.cpp source/build directory" "${IK_DIR}" v_safe_path "${SAFE_PATH_HINT}" ;;
+            mainline) ask_value MAINLINE_DIR "llama.cpp source/build directory" "${MAINLINE_DIR}" v_safe_path "${SAFE_PATH_HINT}" ;;
         esac
     done
 }
 
 ask_engine() {
+    conf_defaults
     ask_value ENGINE "Engine the service runs (mainline or ik)" "${ENGINE}" v_engine "Type mainline or ik."
     case "${ENGINE}" in
-        ik) ask_value IK_DIR "ik_llama.cpp source/build directory" "${IK_DIR}" v_path "${PATH_HINT}" ;;
-        mainline) ask_value MAINLINE_DIR "llama.cpp source/build directory" "${MAINLINE_DIR}" v_path "${PATH_HINT}" ;;
+        ik) ask_value IK_DIR "ik_llama.cpp source/build directory" "${IK_DIR}" v_safe_path "${SAFE_PATH_HINT}" ;;
+        mainline) ask_value MAINLINE_DIR "llama.cpp source/build directory" "${MAINLINE_DIR}" v_safe_path "${SAFE_PATH_HINT}" ;;
     esac
 }
 
@@ -662,7 +834,8 @@ engine_bin() {
 }
 
 # select_model: menu of known models, a custom URL, or no download.
-# Sets MODEL_URL (empty = no download) and MODEL_HAS_MTP.
+# Sets MODEL_URL (empty = no download), MODEL_HAS_MTP and, for a menu model
+# only, MODEL_SIZE_WANT and MODEL_SHA256_WANT.
 select_model() {
     local i default_choice custom_no skip_no
     ((MODEL_CHOSEN == 1)) && return 0
@@ -688,6 +861,8 @@ select_model() {
     ask_value MODEL_SELECTION "Model" "${MODEL_SELECTION}" v_model_choice \
         "Type a number from 1 to ${skip_no}."
 
+    MODEL_SIZE_WANT=""
+    MODEL_SHA256_WANT=""
     if ((MODEL_SELECTION == skip_no)); then
         MODEL_URL=""
         MODEL_HAS_MTP=0
@@ -702,6 +877,8 @@ select_model() {
     else
         MODEL_URL="${MODEL_URLS[$((MODEL_SELECTION - 1))]}"
         MODEL_HAS_MTP="${MODEL_MTP[$((MODEL_SELECTION - 1))]}"
+        MODEL_SIZE_WANT="${MODEL_SIZES[$((MODEL_SELECTION - 1))]}"
+        MODEL_SHA256_WANT="${MODEL_SHA256[$((MODEL_SELECTION - 1))]}"
     fi
     MODEL_CHOSEN=1
 }
@@ -925,9 +1102,31 @@ do_zsh_defaults() {
         ZSHRC_FILE="$(readlink -f "${ZSHRC_FILE}")"
         echo "  ~/.zshrc is a symlink; updating its target ${ZSHRC_FILE}"
     fi
+    ZSHRC_BACKUP=""
+    ZSHRC_HAD_BLOCK=0
+    # A begin marker with no end marker after it would make the awk step below
+    # drop the rest of the file: refuse, and change nothing.
+    if [[ -f "${ZSHRC_FILE}" ]] && ! awk -v b="${ZSHRC_BEGIN}" -v e="${ZSHRC_END}" '
+            $0 == b { skip = 1 }
+            $0 == e { skip = 0 }
+            END { exit skip }' "${ZSHRC_FILE}"; then
+        echo "${ZSHRC_FILE} has the line" >&2
+        echo "    ${ZSHRC_BEGIN}" >&2
+        echo "without the matching line after it:" >&2
+        echo "    ${ZSHRC_END}" >&2
+        echo "Replacing the block would delete everything below the first line.  Put the" >&2
+        echo "second line back at the end of the block (or remove the first) and re-run." >&2
+        echo "The file was not changed." >&2
+        fail_body "${ZSHRC_FILE} has a begin marker without an end marker; not changed"
+    fi
     TMP_ZSHRC="$(mktemp)"
+    # The new content holds the API key: never leave the temp file behind,
+    # however this body ends (it runs in run_body's subshell).
+    trap 'rm -f "${TMP_ZSHRC}"' EXIT
     if [[ -f "${ZSHRC_FILE}" ]]; then
-        cp -p "${ZSHRC_FILE}" "${ZSHRC_FILE}.bak-$(date +%Y%m%d-%H%M%S)"
+        ZSHRC_BACKUP="${ZSHRC_FILE}.bak-$(date +%Y%m%d-%H%M%S)"
+        cp -p "${ZSHRC_FILE}" "${ZSHRC_BACKUP}"
+        if grep -qxF -- "${ZSHRC_BEGIN}" "${ZSHRC_FILE}"; then ZSHRC_HAD_BLOCK=1; fi
         # Keep everything outside a previous block from this script,
         # minus trailing blank lines (so re-runs don't add blank lines).
         awk -v b="${ZSHRC_BEGIN}" -v e="${ZSHRC_END}" '
@@ -943,12 +1142,17 @@ do_zsh_defaults() {
         write_zshrc_block
         echo "${ZSHRC_END}"
     } >>"${TMP_ZSHRC}"
-    # The file holds the API key, so only its owner may read it.
+    # The file holds the API key, so only its owner may read it.  Without a
+    # key an existing file keeps its mode (it may hold other secrets).
     ZSHRC_MODE=644
+    [[ -f "${ZSHRC_FILE}" ]] && ZSHRC_MODE="$(stat -c %a "${ZSHRC_FILE}")"
     [[ -n "${API_KEY}" ]] && ZSHRC_MODE=600
     install -m "${ZSHRC_MODE}" -o "${SHELL_USER}" -g "${USER_GROUP}" "${TMP_ZSHRC}" "${ZSHRC_FILE}"
     rm -f "${TMP_ZSHRC}"
     echo "Updated ${ZSHRC_FILE}"
+    if ((ZSHRC_HAD_BLOCK == 1)); then
+        echo "The block from the previous run was replaced; the file as it was is in ${ZSHRC_BACKUP}"
+    fi
 }
 
 if section "Zsh defaults (~/.zshrc)" \
@@ -964,8 +1168,8 @@ if section "Zsh defaults (~/.zshrc)" \
     USER_HOME="$(getent passwd "${SHELL_USER}" | cut -d: -f6)"
     if [[ -z "${USER_HOME}" || ! -d "${USER_HOME}" ]]; then
         echo "  ${SHELL_USER} has no home directory (${USER_HOME:-not set}); skipping."
-        SKIPPED+=("${DONE[-1]} (no home directory)")
-        unset 'DONE[-1]'
+        SKIPPED+=("${SECTION_TITLE} (no home directory)")
+        if ((${#DONE[@]} > 0)) && [[ "${DONE[-1]}" == "${SECTION_TITLE}" ]]; then unset 'DONE[-1]'; fi
     elif deps_ok "${missing[@]}"; then
         ask_api_key
         run_body do_zsh_defaults
@@ -1126,11 +1330,24 @@ fi
 # 5. Swap file
 # ---------------------------------------------------------------------------
 
+# swap_undo: do_swap_file's EXIT trap.  A file this run created but could not
+# put to use is removed again (also on Ctrl-C), or every re-run would stop at
+# the leftover.  A file that was already there is never removed.
+swap_undo() {
+    if ((SWAP_NEW == 1)); then
+        rm -f "${SWAPFILE}"
+        echo "Removed the unfinished ${SWAPFILE} again." >&2
+    fi
+}
+
 do_swap_file() {
     if swapon --show=NAME --noheadings | grep -qxF "${SWAPFILE}"; then
         echo "${SWAPFILE} is already active; leaving it as is."
     else
-        if [[ ! -f "${SWAPFILE}" ]]; then
+        SWAP_NEW=0
+        trap swap_undo EXIT
+        if [[ ! -e "${SWAPFILE}" ]]; then
+            SWAP_NEW=1
             fallocate -l "${SWAP_SIZE_GB}G" "${SWAPFILE}"
             chmod 600 "${SWAPFILE}"
             mkswap "${SWAPFILE}"
@@ -1138,6 +1355,7 @@ do_swap_file() {
             echo "${SWAPFILE} already exists; enabling it without resizing."
         fi
         swapon "${SWAPFILE}"
+        SWAP_NEW=0
     fi
     if ! awk -v f="${SWAPFILE}" '$1 == f { found = 1 } END { exit !found }' /etc/fstab; then
         echo "${SWAPFILE} none swap sw 0 0" >>/etc/fstab
@@ -1163,9 +1381,28 @@ if section "${SWAP_ASK[@]}" "Swap file" \
     "Creates a swap file and adds it to /etc/fstab.  Swap is only a safety net;" \
     "models must fit in RAM.  You choose the size and path next." \
     "${SWAP_NOTE[@]}"; then
-    ask_value SWAPFILE "Swap file path" "${SWAPFILE}" v_path "${PATH_HINT}"
+    ask_value SWAPFILE "Swap file path" "${SWAPFILE}" v_safe_path "${SAFE_PATH_HINT}"
     ask_value SWAP_SIZE_GB "Swap file size in GB" "${SWAP_SIZE_GB}" v_posint "Use a whole number of GB."
-    run_body do_swap_file
+    # An existing file is never resized: say so, and ask before reusing one
+    # of another size.
+    SWAP_REUSE=1
+    if [[ -f "${SWAPFILE}" ]]; then
+        SWAP_HAVE="$(stat -c %s "${SWAPFILE}" 2>/dev/null)" || SWAP_HAVE=0
+        SWAP_HAVE_GB="$(awk -v b="${SWAP_HAVE}" 'BEGIN { printf "%.1f", b / 1024 / 1024 / 1024 }')"
+        echo "  ${SWAPFILE} already exists: ${SWAP_HAVE_GB} GB now, ${SWAP_SIZE_GB} GB requested."
+        if [[ "${SWAP_HAVE}" != "$((SWAP_SIZE_GB * 1024 * 1024 * 1024))" ]]; then
+            echo "  This script does not resize or replace it.  For another size, skip"
+            echo "  this, then: sudo swapoff ${SWAPFILE}; sudo rm ${SWAPFILE}  and re-run."
+            confirm_no "  Use the existing file at its current size?" || SWAP_REUSE=0
+        fi
+    fi
+    if ((SWAP_REUSE == 1)); then
+        run_body do_swap_file
+    else
+        echo "  Skipped: ${SECTION_TITLE} (existing file not reused); ${SWAPFILE} was left alone."
+        SKIPPED+=("${SECTION_TITLE} (existing file not reused)")
+        if ((${#DONE[@]} > 0)) && [[ "${DONE[-1]}" == "${SECTION_TITLE}" ]]; then unset 'DONE[-1]'; fi
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -1197,7 +1434,19 @@ do_transparent_hugepages() {
 w /sys/kernel/mm/transparent_hugepage/enabled - - - - ${THP_MODE}
 EOF
     systemd-tmpfiles --create /etc/tmpfiles.d/transparent-hugepages.conf || true
-    cat /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
+    # Read it back: a failed write is not an error for tmpfiles.
+    THP_NODE=/sys/kernel/mm/transparent_hugepage/enabled
+    if [[ ! -r "${THP_NODE}" ]]; then
+        echo "WARNING: ${THP_NODE} does not exist: this kernel has"
+        echo "         no transparent hugepages, so nothing was set."
+    else
+        THP_NOW="$(sed -n 's/.*\[\(.*\)\].*/\1/p' "${THP_NODE}" 2>/dev/null)" || THP_NOW=""
+        echo "Transparent hugepages are now: ${THP_NOW:-unknown}  ($(cat "${THP_NODE}" 2>/dev/null || true))"
+        if [[ "${THP_NOW}" != "${THP_MODE}" ]]; then
+            echo "WARNING: asked for '${THP_MODE}' but the kernel reports '${THP_NOW:-unknown}'; the setting"
+            echo "         did not take effect (see the systemd-tmpfiles message above, if any)."
+        fi
+    fi
 }
 
 if section "Transparent hugepages" \
@@ -1213,10 +1462,14 @@ fi
 # ---------------------------------------------------------------------------
 
 do_cpu_governor() {
+    # No After=multi-user.target: llama-server.service is ordered after this
+    # unit and both are wanted by multi-user.target, so that would be an
+    # ordering cycle and systemd would drop llama-server from the boot.  The
+    # default ordering (after basic.target) is late enough: Ubuntu's kernels
+    # have the x86 cpufreq drivers built in, so the /sys nodes exist by then.
     cat >/etc/systemd/system/cpu-performance.service <<'EOF'
 [Unit]
 Description=Set CPU frequency governor to performance for LLM inference
-After=multi-user.target
 
 [Service]
 Type=oneshot
@@ -1228,7 +1481,27 @@ WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
     systemctl enable --now cpu-performance.service
-    cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "(no cpufreq)"
+    # The unit always exits 0, so check what the cores report now.
+    local g gov_all=0 gov_perf=0 gov_cpu0
+    for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+        [[ -r "${g}" ]] || continue
+        gov_all=$((gov_all + 1))
+        if [[ "$(cat "${g}" 2>/dev/null)" == performance ]]; then
+            gov_perf=$((gov_perf + 1))
+        fi
+    done
+    if ((gov_all == 0)); then
+        echo "This machine has no cpufreq interface (a virtual machine, or no frequency"
+        echo "driver loaded), so there is no governor to set; the service does nothing here."
+    elif ((gov_perf == 0)); then
+        gov_cpu0="$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null)" || gov_cpu0=unknown
+        echo "WARNING: none of the ${gov_all} cores reports the performance governor (cpu0 says"
+        echo "         '${gov_cpu0}').  The CPU frequency driver or the firmware is overriding"
+        echo "         it: check the power/performance profile in the BIOS, and the list in"
+        echo "         /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors"
+    else
+        echo "${gov_perf} of ${gov_all} cores now use the performance governor."
+    fi
 }
 
 if section "CPU governor" \
@@ -1283,6 +1556,14 @@ EOF
     # Check the settings really are in effect: an earlier value elsewhere in
     # the sshd configuration would win over the drop-in.
     SSHD_EFFECTIVE="$(sshd -T 2>/dev/null)" || SSHD_EFFECTIVE=""
+    # Never turn passwords off while keys are not accepted either.
+    if ! grep -qix "pubkeyauthentication yes" <<<"${SSHD_EFFECTIVE}"; then
+        rm -f "${SSHD_DROPIN}"
+        echo "sshd does not report 'pubkeyauthentication yes': public-key logins are off" >&2
+        echo "(or 'sshd -T' failed), so nobody could log in without passwords." >&2
+        echo "${SSHD_DROPIN} was removed again; SSH is unchanged." >&2
+        fail_body "public-key logins are not on in sshd; SSH is unchanged"
+    fi
     for want in "passwordauthentication no" "kbdinteractiveauthentication no" "permitrootlogin no"; do
         if ! grep -qix "${want}" <<<"${SSHD_EFFECTIVE}"; then
             rm -f "${SSHD_DROPIN}"
@@ -1295,7 +1576,13 @@ EOF
     echo "Wrote ${SSHD_DROPIN}"
     # reload, not restart: sessions that are open stay open.
     if systemctl is-active --quiet ssh; then
-        systemctl reload ssh
+        if ! systemctl reload ssh; then
+            # Left in place it would take effect at the next sshd start.
+            rm -f "${SSHD_DROPIN}"
+            echo "Reloading SSH failed (see above).  ${SSHD_DROPIN} was removed" >&2
+            echo "again, so the settings do not apply at the next sshd start either." >&2
+            fail_body "reloading SSH failed; the key-only settings were removed again"
+        fi
         echo "SSH reloaded: password and root logins are now off."
     else
         echo "ssh.service is not running right now; the settings apply when it starts."
@@ -1326,21 +1613,41 @@ if section --default-no "Key-only SSH logins" \
             "Use the name of an existing user (the one you log in as)."
         SSH_KEYS="$(getent passwd "${SSH_USER}" | cut -d: -f6)/.ssh/authorized_keys"
         SSH_ADDR="$(hostname -I 2>/dev/null | awk '{print $1}')" || SSH_ADDR=""
+        # What sshd uses now: are keys accepted at all, and are they read from
+        # the default file, the only place this section looks for one?  (If
+        # sshd cannot say, the body stops at its own 'sshd -t' check.)
+        SSHD_NOW="$(sshd_settings)" || SSHD_NOW=""
+        SSH_KEYS_CONF="$(awk '$1 == "authorizedkeysfile" { $1 = ""; print substr($0, 2); exit }' <<<"${SSHD_NOW}")"
         SSH_REFUSE=""
+        SSH_FIX=""              # what to do about it, if not "install a key"
         if [[ "${SSH_USER}" == root ]]; then
             SSH_REFUSE="root logins would be turned off, so root cannot be the user you log in as"
+        elif [[ -n "${SSHD_NOW}" ]] && ! grep -qix "pubkeyauthentication yes" <<<"${SSHD_NOW}"; then
+            SSH_REFUSE="sshd does not accept SSH keys (PubkeyAuthentication no in its configuration)"
+            SSH_FIX="Turn that on, check that a login with your key works, then re-run this script."
+        elif [[ -n "${SSHD_NOW}" && " ${SSH_KEYS_CONF} " != *" .ssh/authorized_keys "* \
+            && " ${SSH_KEYS_CONF} " != *" %h/.ssh/authorized_keys "* ]]; then
+            SSH_REFUSE="sshd reads keys from '${SSH_KEYS_CONF}' (AuthorizedKeysFile), not from ~/.ssh/authorized_keys, the only file checked here"
+            SSH_FIX="Check by hand that a login with your key works before turning passwords off."
         elif ! has_ssh_key "${SSH_KEYS}"; then
             SSH_REFUSE="${SSH_USER} has no SSH key in ${SSH_KEYS}"
         fi
-        if [[ -n "${SSH_REFUSE}" ]]; then
+        if [[ -n "${SSH_REFUSE}" && -n "${SSH_FIX}" ]]; then
+            echo "  Not changing SSH: ${SSH_REFUSE}."
+            echo "  With password logins off you could no longer log in."
+            echo "  ${SSH_FIX}"
+            echo "  Skipped: ${SECTION_TITLE} (refused)"
+            SKIPPED+=("${SECTION_TITLE} (refused)")
+            if ((${#DONE[@]} > 0)) && [[ "${DONE[-1]}" == "${SECTION_TITLE}" ]]; then unset 'DONE[-1]'; fi
+        elif [[ -n "${SSH_REFUSE}" ]]; then
             echo "  Not changing SSH: ${SSH_REFUSE}."
             echo "  With password logins off you could no longer log in.  Install a key"
             echo "  first, from the computer you connect from:"
             echo "    ssh-copy-id ${SSH_USER}@${SSH_ADDR:-<this-host>}"
             echo "  log in once with it, then re-run this script."
-            echo "  Skipped: ${DONE[-1]} (refused)"
-            SKIPPED+=("${DONE[-1]} (refused)")
-            unset 'DONE[-1]'
+            echo "  Skipped: ${SECTION_TITLE} (refused)"
+            SKIPPED+=("${SECTION_TITLE} (refused)")
+            if ((${#DONE[@]} > 0)) && [[ "${DONE[-1]}" == "${SECTION_TITLE}" ]]; then unset 'DONE[-1]'; fi
         else
             echo "  ${SSH_USER} has $(grep -c . "${SSH_KEYS}" 2>/dev/null || true) line(s) in ${SSH_KEYS}."
             echo "  Say yes only if you have already logged in to this machine WITH that key"
@@ -1348,9 +1655,9 @@ if section --default-no "Key-only SSH logins" \
             if confirm_no "  Turn off SSH password logins and root logins now?"; then
                 run_body do_ssh_key_only
             else
-                echo "  Skipped: ${DONE[-1]} (not confirmed)"
-                SKIPPED+=("${DONE[-1]} (not confirmed)")
-                unset 'DONE[-1]'
+                echo "  Skipped: ${SECTION_TITLE} (not confirmed)"
+                SKIPPED+=("${SECTION_TITLE} (not confirmed)")
+                if ((${#DONE[@]} > 0)) && [[ "${DONE[-1]}" == "${SECTION_TITLE}" ]]; then unset 'DONE[-1]'; fi
             fi
         fi
     fi
@@ -1360,9 +1667,25 @@ fi
 # 10. Firewall
 # ---------------------------------------------------------------------------
 
+# ufw_delete_ours COMMENT: delete the ufw rules that carry COMMENT.  Only
+# rules added by this script do, so a re-run can replace its own rule after a
+# change of subnet or port without touching anyone else's.
+ufw_delete_ours() {
+    local line
+    local -a added rule
+    mapfile -t added < <(ufw show added 2>/dev/null)
+    for line in "${added[@]}"; do
+        [[ "${line}" == "ufw "*" comment '$1'" ]] || continue
+        line="${line#ufw }"
+        read -r -a rule <<<"${line% comment \'*}"
+        echo "Removing the rule of an earlier run: ${rule[*]}"
+        ufw delete "${rule[@]}"
+    done
+}
+
 do_firewall() {
-    ufw default deny incoming
-    ufw default allow outgoing
+    # The SSH rules go in before the policy is set to deny, so that there is
+    # no moment at which SSH is not allowed.
     if ufw app info OpenSSH >/dev/null 2>&1; then
         ufw allow OpenSSH
     else
@@ -1376,28 +1699,57 @@ do_firewall() {
         echo "Allowing SSH port ${p}/tcp"
         ufw allow "${p}/tcp"
     done
+    ufw_delete_ours 'llama-server API (LAN)'
     if [[ "${EXPOSE_LAN}" == "1" && -n "${LAN_CIDR}" ]]; then
         echo "Allowing the LLM API (${LLM_PORT}/tcp) from ${LAN_CIDR} only"
         ufw allow from "${LAN_CIDR}" to any port "${LLM_PORT}" proto tcp comment 'llama-server API (LAN)'
     fi
+    ufw default deny incoming
+    ufw default allow outgoing
     ufw --force enable
     ufw status verbose
 }
 
+# detect_ssh_ports: set SSH_PORTS to the ports sshd really listens on, other
+# than 22 (which do_firewall always allows): the Port lines, and the port of
+# each ListenAddress (a.b.c.d:port or [v6]:port).  If sshd cannot report its
+# settings, says so and asks whether to go on; returns 1 to skip the section.
+detect_ssh_ports() {
+    local out
+    SSH_PORTS=()
+    command -v sshd >/dev/null 2>&1 || return 0
+    if out="$(sshd_settings)"; then
+        mapfile -t SSH_PORTS < <(awk '
+            { p = "" }
+            $1 == "port" { p = $2 }
+            $1 == "listenaddress" && $2 ~ /^(\[.*\]|[^:]*):[0-9]+$/ { p = $2; sub(/^.*:/, "", p) }
+            p ~ /^[0-9]+$/ && p != 22 && !seen[p]++ { print p }' <<<"${out}")
+        if ((${#SSH_PORTS[@]} > 0)); then
+            echo "  sshd also listens on: ${SSH_PORTS[*]} (will be allowed along with 22)"
+        fi
+        return 0
+    fi
+    echo "  WARNING: the SSH server could not report its settings ('sshd -T' failed), so"
+    echo "  the port(s) it listens on are not known.  Only the standard SSH port, 22"
+    echo "  (OpenSSH), will be allowed.  If sshd listens on another port, turning the"
+    echo "  firewall on blocks every new SSH login: then answer n here, find out what"
+    echo "  is wrong with 'sudo sshd -T', and re-run this script."
+    if confirm_no "  Turn the firewall on with only port 22 allowed for SSH?"; then
+        return 0
+    fi
+    echo "  Skipped: ${SECTION_TITLE} (SSH port not known)"
+    SKIPPED+=("${SECTION_TITLE} (SSH port not known)")
+    if ((${#DONE[@]} > 0)) && [[ "${DONE[-1]}" == "${SECTION_TITLE}" ]]; then unset 'DONE[-1]'; fi
+    return 1
+}
+
 if section "Firewall (ufw)" \
     "Blocks incoming traffic except SSH (from anywhere) and, optionally, the" \
-    "llama-server API from your local subnet only.  Outgoing traffic is allowed."; then
+    "llama-server API from your local subnet only.  Outgoing traffic is allowed." \
+    "The subnet is detected from the default route and shown for you to keep or" \
+    "change: with a VPN or several network interfaces it is only a guess."; then
     mapfile -t missing < <(missing_cmds ufw)
-    if deps_ok "${missing[@]}"; then
-        # Ports sshd really listens on, other than 22 (already allowed above).
-        # Empty if sshd is missing or `sshd -T` fails.
-        SSH_PORTS=()
-        if command -v sshd >/dev/null 2>&1 && sshd_out="$(sshd -T 2>/dev/null)"; then
-            mapfile -t SSH_PORTS < <(awk '$1 == "port" && $2 ~ /^[0-9]+$/ && $2 != 22 && !seen[$2]++ {print $2}' <<<"${sshd_out}")
-        fi
-        if ((${#SSH_PORTS[@]} > 0)); then
-            echo "sshd also listens on: ${SSH_PORTS[*]} (will be allowed along with 22)"
-        fi
+    if deps_ok "${missing[@]}" && detect_ssh_ports; then
         ask_expose_lan
         # The subnet is detected here, not in do_firewall, because the
         # configuration section reads EXPOSE_LAN later.
@@ -1405,8 +1757,29 @@ if section "Firewall (ufw)" \
         if [[ "${EXPOSE_LAN}" == "1" ]]; then
             ask_port
             detect_lan
+            FW_CIDR="${LAN_CIDR}"
+            # A route that is not a subnet (e.g. a bare gateway address on a
+            # cloud host) counts as not detected.
+            if [[ -n "${FW_CIDR}" ]] && ! v_cidr "${FW_CIDR}" >/dev/null; then
+                echo "  Found '${FW_CIDR}' on ${DEFAULT_DEV}, which is not a usable IPv4 subnet (a.b.c.d/n);"
+                echo "  not offering it."
+                FW_CIDR=""
+            fi
+            if [[ -n "${FW_CIDR}" ]]; then
+                echo "  Detected local subnet: ${FW_CIDR} (interface ${DEFAULT_DEV})."
+                ask_value FW_CIDR "Subnet allowed to reach the LLM API" "${FW_CIDR}" v_cidr "${CIDR_HINT}"
+            else
+                echo "  Could not detect the local subnet.  Type it, or press Enter to keep the"
+                echo "  LLM API on localhost only."
+                while :; do
+                    read_line "  Subnet allowed to reach the LLM API (empty = localhost only): " FW_CIDR
+                    if [[ -z "${FW_CIDR}" ]] || v_cidr "${FW_CIDR}"; then break; fi
+                    echo "  '${FW_CIDR}' is not valid.  ${CIDR_HINT}"
+                done
+            fi
+            LAN_CIDR="${FW_CIDR}"
             if [[ -z "${LAN_CIDR}" ]]; then
-                echo "Could not detect the LAN subnet; the LLM API will stay on localhost only."
+                echo "  No subnet given; the LLM API will stay on localhost only."
                 EXPOSE_LAN=0
             fi
         fi
@@ -1437,6 +1810,7 @@ do_mdns() {
     systemctl enable avahi-daemon
     systemctl restart avahi-daemon
     if ((MDNS_UFW == 1)); then
+        ufw_delete_ours 'mDNS (LAN)'
         echo "Allowing mDNS (5353/udp) from ${MDNS_CIDR} only"
         ufw allow from "${MDNS_CIDR}" to any port 5353 proto udp comment 'mDNS (LAN)'
     fi
@@ -1681,13 +2055,11 @@ build_engine() {
     cmake --build "${dir}/build" --config Release -j "$(nproc)" --target llama-server llama-cli llama-bench
 }
 
-do_build_engines() {
-    for eng in ${BUILD_ENGINES}; do
-        case "${eng}" in
-            ik) build_engine "ik_llama.cpp" "${IK_REPO}" "${IK_DIR}" ;;
-            mainline) build_engine "llama.cpp" "${MAINLINE_REPO}" "${MAINLINE_DIR}" ;;
-        esac
-    done
+do_build_engine() {
+    case "$1" in
+        ik) build_engine "ik_llama.cpp" "${IK_REPO}" "${IK_DIR}" ;;
+        mainline) build_engine "llama.cpp" "${MAINLINE_REPO}" "${MAINLINE_DIR}" ;;
+    esac
 }
 
 if section "Build inference engines" \
@@ -1702,7 +2074,24 @@ if section "Build inference engines" \
         ask_value BUILD_ENGINES "Engines to build (space-separated: mainline, ik)" "${BUILD_ENGINES}" v_engines \
             "Use mainline, ik, or both separated by a space."
         ask_engine_dirs
-        run_body do_build_engines
+        # The engine the service runs is built first, and each engine in a
+        # body of its own, so that one failing does not stop the other.  Each
+        # is recorded under its own name (done or failed).
+        BUILD_ORDER=()
+        for eng in ${BUILD_ENGINES}; do
+            if [[ "${eng}" == "${ENGINE}" ]]; then BUILD_ORDER=("${eng}"); fi
+        done
+        for eng in ${BUILD_ENGINES}; do
+            if [[ " ${BUILD_ORDER[*]} " != *" ${eng} "* ]]; then BUILD_ORDER+=("${eng}"); fi
+        done
+        BUILD_TITLE="${SECTION_TITLE}"
+        unset 'DONE[-1]'
+        for eng in "${BUILD_ORDER[@]}"; do
+            SECTION_TITLE="${BUILD_TITLE} (${eng})"
+            DONE+=("${SECTION_TITLE}")
+            run_body do_build_engine "${eng}"
+        done
+        SECTION_TITLE="${BUILD_TITLE}"
     fi
 fi
 
@@ -1734,7 +2123,7 @@ EOF
 if section "Engine updater script" \
     "Installs a script that pulls and rebuilds the engines, then restarts" \
     "llama-server.  Run it every few weeks."; then
-    ask_value UPDATER "Updater script path" "${UPDATER}" v_path "${PATH_HINT}"
+    ask_value UPDATER "Updater script path" "${UPDATER}" v_safe_path "${SAFE_PATH_HINT}"
     ask_value BUILD_ENGINES "Engines the updater rebuilds (space-separated: mainline, ik)" "${BUILD_ENGINES}" v_engines \
         "Use mainline, ik, or both separated by a space."
     ask_engine_dirs
@@ -1752,22 +2141,55 @@ fi
 # 15. Model download
 # ---------------------------------------------------------------------------
 
+# bad_model WHAT: the downloaded model is not the expected file; delete it and
+# fail the section.
+bad_model() {
+    runuser -u "${LLM_USER}" -- rm -f "${MODEL_FILE}"
+    echo "ERROR: ${MODEL_FILE} failed the integrity check:" >&2
+    echo "       $1." >&2
+    echo "       The download is damaged, or it is not the file this script expects." >&2
+    echo "       The file was deleted.  Re-run this script to download it again; if" >&2
+    echo "       the check fails again, do not use the file, and compare MODEL_URLS," >&2
+    echo "       MODEL_SIZES and MODEL_SHA256 in this script with Hugging Face." >&2
+    fail_body "model integrity check failed (${MODEL_FILENAME}); the file was deleted"
+}
+
 do_download_model() {
     echo "Free space in ${MODEL_DIR}: $(df -h --output=avail "${MODEL_DIR}" 2>/dev/null | tail -1 | tr -d ' ' || echo unknown)"
     echo "Downloading to ${MODEL_FILE}"
-    if runuser -u "${LLM_USER}" -- curl -fL --retry 5 --retry-delay 10 -C - -o "${MODEL_FILE}" "${MODEL_URL}"; then
+    if runuser -u "${LLM_USER}" -- curl -fL --connect-timeout 30 --retry 5 --retry-delay 10 -C - -o "${MODEL_FILE}" "${MODEL_URL}"; then
         echo "Download complete"
     else
         echo "WARNING: model download failed.  Re-run this script to resume, or put a"
         echo "         GGUF in ${MODEL_DIR} and set MODEL= in the llama-server config."
         fail_body "model download failed"
     fi
+    if [[ -z "${MODEL_SHA256_WANT}" ]]; then
+        echo "NOTE: no integrity check was done on this file: the script has no known"
+        echo "      size or SHA-256 for a custom URL.  Compare it with the publisher's"
+        echo "      checksum yourself:  sha256sum ${MODEL_FILE}"
+        return 0
+    fi
+    # Size first (instant), then the hash of the whole file.  Also reached on
+    # a re-run: curl then finds the file complete and downloads nothing.
+    MODEL_SIZE_GOT="$(stat -c %s "${MODEL_FILE}")"
+    if [[ "${MODEL_SIZE_GOT}" != "${MODEL_SIZE_WANT}" ]]; then
+        bad_model "it is ${MODEL_SIZE_GOT} bytes, expected ${MODEL_SIZE_WANT}"
+    fi
+    echo "Size is right.  Checking the SHA-256 of ${MODEL_SIZE_GOT} bytes; this takes a few minutes..."
+    MODEL_SHA256_GOT="$(runuser -u "${LLM_USER}" -- sha256sum "${MODEL_FILE}" | cut -d' ' -f1)"
+    if [[ "${MODEL_SHA256_GOT}" != "${MODEL_SHA256_WANT}" ]]; then
+        bad_model "its SHA-256 is ${MODEL_SHA256_GOT}, expected ${MODEL_SHA256_WANT}"
+    fi
+    echo "SHA-256 matches: ${MODEL_FILE} is intact."
 }
 
 if section "Download a model" \
     "Lets you pick a model from a menu (or paste any GGUF URL) and downloads" \
     "it into the model directory as the service user.  The download is" \
-    "resumable; the listed models are 17-24 GB."; then
+    "resumable; the listed models are 17-24 GB.  A model from the menu is then" \
+    "checked against its known size and SHA-256 (a few minutes) and deleted if" \
+    "it does not match; a file from your own URL is not checked."; then
     select_model
     if [[ -z "${MODEL_URL}" ]]; then
         echo "No model chosen; nothing to download."
@@ -1868,9 +2290,14 @@ if section "llama-server configuration" \
     "threads, context size, sampling and engine flags).  You are asked for" \
     "each value, including an API key.  An existing file is backed up before it" \
     "is replaced.  It is readable by root and the service user only."; then
-    ask_value CONF "Config file path" "${CONF}" v_path "${PATH_HINT}"
+    conf_defaults
     ask_engine
     ask_model_dir
+    # No model picked in this run: keep the one the existing config serves.
+    if [[ -z "${MODEL_FILE}" && -z "${MODEL_URL}" && -n "${CONF_MODEL}" ]] && ((MODEL_CHOSEN == 0)); then
+        echo "  Keeping the model set in ${CONF}."
+        MODEL_FILE="${CONF_MODEL}"
+    fi
     if [[ -z "${MODEL_FILE}" ]]; then
         if ((MODEL_CHOSEN == 0)); then
             echo "  Which model will the service run?"
@@ -1900,7 +2327,8 @@ if section "llama-server configuration" \
         ask_llm_user
         ask_api_key
 
-        SAMPLING_ARGS="--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0"
+        # The flag defaults: what the existing config has, else the built-in.
+        SAMPLING_ARGS="$(conf_or SAMPLING_ARGS "--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0")"
         echo "  Sampling: Ornith recommends '--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0'."
         echo "  For stock Qwen3.6 non-thinking chat use"
         echo "  '--temp 0.7 --top-p 0.8 --top-k 20 --min-p 0 --presence-penalty 1.5'."
@@ -1914,12 +2342,17 @@ if section "llama-server configuration" \
             MAINLINE_ARGS="--reasoning-budget 1024"
             echo "  The model has no known MTP head, so the MTP flags are left out."
         fi
+        # The existing flags are kept unless the model changes in this run
+        # (they may not suit the new one).
+        if [[ "${MODEL_FILE}" == "${CONF_MODEL}" ]]; then
+            MAINLINE_ARGS="$(conf_or MAINLINE_ARGS "${MAINLINE_ARGS}")"
+        fi
         echo "  mainline flags: --spec-type draft-mtp --spec-draft-n-max N needs an MTP GGUF;"
         echo "  --reasoning-budget caps thinking tokens per reply (-1 = unlimited, 0 = off)."
         ask_value MAINLINE_ARGS "llama.cpp (mainline) flags" "${MAINLINE_ARGS}" v_any
-        IK_ARGS="-fmoe -rtr"
+        IK_ARGS="$(conf_or IK_ARGS "-fmoe -rtr")"
         ask_value IK_ARGS "ik_llama.cpp flags (fused MoE, run-time repacking)" "${IK_ARGS}" v_any
-        EXTRA_ARGS=""
+        EXTRA_ARGS="$(conf_or EXTRA_ARGS "")"
         ask_value EXTRA_ARGS "Extra flags for either engine (blank = none)" "${EXTRA_ARGS}" v_any
 
         run_body write_conf
@@ -1963,6 +2396,9 @@ esac
 API_ARGS=()
 if [[ -n "\${API_KEY:-}" ]]; then API_ARGS=(--api-key "\${API_KEY}"); fi
 
+# The three flag variables at the end are split into words on purpose; set -f
+# keeps a flag with * ? or [ in it from being expanded to file names.
+set -f
 # shellcheck disable=SC2086
 exec "\${BIN}" \\
     -m "\${MODEL}" \\
@@ -1983,8 +2419,8 @@ EOF
 if section "llama-server start wrapper" \
     "Installs the script systemd runs: it reads the config file and starts" \
     "llama-server from the engine selected there."; then
-    ask_value WRAPPER "Wrapper script path" "${WRAPPER}" v_path "${PATH_HINT}"
-    ask_value CONF "Config file path" "${CONF}" v_path "${PATH_HINT}"
+    ask_value WRAPPER "Wrapper script path" "${WRAPPER}" v_safe_path "${SAFE_PATH_HINT}"
+    ask_value CONF "Config file path" "${CONF}" v_safe_path "${SAFE_PATH_HINT}"
     [[ -f "${CONF}" ]] || echo "  Note: ${CONF} does not exist yet; the wrapper needs it to start."
     run_body do_start_wrapper
 fi
@@ -2081,8 +2517,8 @@ if section "llama-server systemd service" \
     "None of that touches inference speed.  Two more groups are offered below."; then
     ask_llm_user
     ask_model_dir
-    ask_value WRAPPER "Wrapper script path" "${WRAPPER}" v_path "${PATH_HINT}"
-    ask_value CONF "Config file path" "${CONF}" v_path "${PATH_HINT}"
+    ask_value WRAPPER "Wrapper script path" "${WRAPPER}" v_safe_path "${SAFE_PATH_HINT}"
+    ask_value CONF "Config file path" "${CONF}" v_safe_path "${SAFE_PATH_HINT}"
     echo "  Optional: 12 more directives (private /dev, read-only kernel tunables, no"
     echo "  other address families or namespaces, no realtime...).  They worked with"
     echo "  llama-server but add a seccomp filter: about 30 ns per system call, an"
@@ -2117,7 +2553,7 @@ do_start_service() {
         healthy=0
         # /health is public on both engines, so no API key is needed here.
         for _ in $(seq 1 120); do
-            if curl -fsS "http://127.0.0.1:${HEALTH_PORT}/health" >/dev/null 2>&1; then
+            if curl -fsS --connect-timeout 2 --max-time 5 "http://127.0.0.1:${HEALTH_PORT}/health" >/dev/null 2>&1; then
                 healthy=1
                 break
             fi
@@ -2151,10 +2587,12 @@ if section "Start llama-server" \
                 "$([[ "${ENGINE:-}" == ik ]] && echo "${IK_DIR:-}" || echo "${MAINLINE_DIR:-}")"
         )"
         mapfile -t cv <<<"${CONF_VALUES}"
-        [[ -f "${cv[0]}" ]] || missing+=("model file ${cv[0]} (from the 'Download a model' section)")
-        [[ -x "${cv[3]}/build/bin/llama-server" ]] \
-            || missing+=("${cv[2]} engine at ${cv[3]} (from the 'Build inference engines' section)")
-        HEALTH_PORT="${cv[1]}"
+        # (A trailing empty value, e.g. an empty engine directory, leaves cv
+        # short: hence the defaults.)
+        [[ -f "${cv[0]:-}" ]] || missing+=("model file ${cv[0]:-} (from the 'Download a model' section)")
+        [[ -x "${cv[3]:-}/build/bin/llama-server" ]] \
+            || missing+=("${cv[2]:-mainline} engine at ${cv[3]:-(no directory set)} (from the 'Build inference engines' section)")
+        HEALTH_PORT="${cv[1]:-8080}"
     else
         missing+=("${CONF} (from the 'llama-server configuration' section)")
         HEALTH_PORT="${LLM_PORT}"
@@ -2250,6 +2688,8 @@ EOF
 do_login_motd() {
     mkdir -p "$(dirname "${MOTD_SCRIPT}")"
     TMP_MOTD="$(mktemp)"
+    # Removed however this body ends (it runs in run_body's subshell).
+    trap 'rm -f "${TMP_MOTD}"' EXIT
     write_motd_script >"${TMP_MOTD}"
     if [[ -f "${MOTD_SCRIPT}" ]] && cmp -s "${TMP_MOTD}" "${MOTD_SCRIPT}"; then
         echo "${MOTD_SCRIPT} is already up to date."
@@ -2276,7 +2716,7 @@ if section "Login message" \
     "and model from the config file, the API address, RAM and swap in use, and" \
     "the CPU temperature if the kernel exposes it.  It is read-only and quick," \
     "and never prints the API key.  An existing copy is backed up if it differs."; then
-    ask_value CONF "Config file path" "${CONF}" v_path "${PATH_HINT}"
+    ask_value CONF "Config file path" "${CONF}" v_safe_path "${SAFE_PATH_HINT}"
     run_body do_login_motd
 fi
 
